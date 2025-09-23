@@ -4,13 +4,16 @@ import Body_Layout from "../components/layout/Body_Layout.vue";
 </script>
 
 <template>
-  <Header_Layout />
-  <Body_Layout />
+  <div class="w-full h-full">
+    <Header_Layout />
+    <Body_Layout />
+  </div>
 </template>
 
 <style scoped>
 .header {
   height: 10%;
+  padding: 2rem;
 }
 
 .body {

@@ -1,7 +1,18 @@
-<script setup>
-import Home from "./views/Home.vue";
-</script>
-
 <template>
-  <Home />
+  <router-view v-slot="{ Component }">
+    <transition name="fade" mode="out-in">
+      <component :is="Component" :key="$route.fullPath" />
+    </transition>
+  </router-view>
 </template>
+
+<style>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>
