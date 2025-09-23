@@ -1,7 +1,7 @@
 /* Variables CSS personalizadas */
 :root {
   /* Colores */
-  --color-primary: #c3dd49;
+  --color-primary: rgb(195, 221, 73);
   --color-secondary: #fdfdff;
   --color-background: #010100;
   --color-text: #fdfdff;

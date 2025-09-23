@@ -180,7 +180,7 @@ export default {
 .login-wrapper {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
     Ubuntu, Cantarell, sans-serif;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.03);
   min-height: 100%;
   display: flex;
   align-items: center;
@@ -236,11 +236,7 @@ export default {
 .welcome-text h1 {
   font-size: 32px;
   font-weight: 700;
-  margin-bottom: 8px;
-  background: linear-gradient(135deg, #ffffff 0%, #cccccc 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  margin-bottom: 16px;
 }
 
 .form-group {
@@ -269,9 +265,9 @@ export default {
 }
 
 .form-group input:focus {
-  border-color: #4a9eff;
+  border-color: rgba(195, 221, 73, 1);
   background: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 0 0 3px rgba(74, 158, 255, 0.1);
+  box-shadow: 0 0 0 3px rgba(195, 221, 73, 0.4);
 }
 
 .form-group input::placeholder {
@@ -286,21 +282,21 @@ export default {
 .sign-in-button {
   width: 100%;
   padding: 18px;
-  background: linear-gradient(135deg, #4a9eff 0%, #357abd 100%);
+  background: var(--color-primary);
   border: none;
   border-radius: 12px;
-  color: white;
+  color: var(--color-background);
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
   margin-bottom: 24px;
-  box-shadow: 0 8px 16px rgba(74, 158, 255, 0.2);
+  box-shadow: 0 8px 16px rgba(195, 221, 73, 0.2);
 }
 
 .sign-in-button:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 12px 24px rgba(74, 158, 255, 0.3);
+  box-shadow: 0 12px 24px rgba(195, 221, 73, 0.3);
 }
 
 .sign-in-button:active:not(:disabled) {
