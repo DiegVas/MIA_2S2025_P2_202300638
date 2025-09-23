@@ -1,0 +1,5 @@
+@import "tailwindcss";
+
+@import "./styles/fonts.css"; /* Definiciones de fuentes personalizadas */
+@import "./styles/variables.css"; /* Variables CSS personalizadas */
+@import "./styles/globals.css"; /* Estilos globales de la aplicación */
