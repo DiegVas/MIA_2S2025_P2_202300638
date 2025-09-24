@@ -1,133 +1,127 @@
 <script setup>
-import Back_button from "../components/layout/Back_button.vue";
+import Back_button from "../components/common/Back_button.vue";
 import { usedisksStore } from "../store/disks.js";
+import Disk_layout from "../components/layout/Disk_layout.vue";
+import Partition_layout from "../components/layout/Partition_layout.vue";
+import { useRouter } from "vue-router";
+import { ref } from "vue";
+import { computed } from "vue";
+import { watch } from "vue";
 
-const { disks } = usedisksStore();
+const titles = {
+  disco: "disco",
+  particion: "partición",
+};
 
-console.log("Disks in Home.vue:", disks.value);
+const typewriterText = ref("");
+const typingIndex = ref(0);
+const typingInterval = ref(null);
 
-const disks_list = disks.value.data || [];
+const $router = useRouter();
+const { disks, setSelectedDisk, selectedDisk, clearSelectedDisk } =
+  usedisksStore();
+
+const goBack = () => {
+  if (selectedDisk.value === null) {
+    $router.push("/");
+    return;
+  } else {
+    clearSelectedDisk();
+    return;
+  }
+};
+
+function startTypewriter(newTitle) {
+  clearInterval(typingInterval.value);
+  typewriterText.value = "";
+  typingIndex.value = 0;
+  typingInterval.value = setInterval(() => {
+    if (typingIndex.value < newTitle.length) {
+      typewriterText.value += newTitle[typingIndex.value];
+      typingIndex.value++;
+    } else {
+      clearInterval(typingInterval.value);
+    }
+  }, 60); // velocidad de escritura
+}
+
+// Detecta cambios en selectedDisk y actualiza el título
+watch(
+  () => selectedDisk.value,
+  (newVal) => {
+    if (newVal) {
+      startTypewriter(titles.particion);
+    } else {
+      startTypewriter(titles.disco);
+    }
+  },
+  { immediate: true }
+);
+
+const show = ref(true);
 </script>
 
 <template>
-  <div class="content flex self-center justify-center w-full">
-    <div class="disks-container">
-      <Back_button />
-      <h1>Seleccionar Disco</h1>
-      <!-- Disk Selection Page -->
-      <div class="disk-grid">
-        <div
-          v-for="disk in disks_list"
-          :key="disk.id"
-          class="disk-card"
-          @click="selectDisk(disk)"
-        >
-          <div class="disk-header">
-            <span class="material-symbols-outlined disk-icon"> hard_disk </span>
-            <div class="disk-info">
-              <h3>{{ disk.name }}</h3>
-              <small>{{ disk.size + " MB" }}</small>
-            </div>
-          </div>
-
-          <div class="disk-details">
-            <div class="detail-item">
-              <div class="label">Algoritmo Fit</div>
-              <div class="value">{{ disk.fit }}</div>
-            </div>
-            <div class="detail-item">
-              <div class="label">Particiones</div>
-              <div class="value">{{ disk.partitions.length }}</div>
-            </div>
-          </div>
-        </div>
+  <div class="page-container flex self-center justify-center w-full relative">
+    <Back_button :backFunction="goBack" />
+    <div class="content">
+      <div class="typewriter-title">
+        Seleccionar {{ typewriterText }}<span class="typewriter-cursor">|</span>
       </div>
+      <Transition name="fade-disk" mode="out-in">
+        <Disk_layout v-if="show" />
+        <Partition_layout v-else />
+      </Transition>
     </div>
   </div>
 </template>
+<style>
+.typewriter-title {
+  font-size: 2rem;
+  font-weight: bold;
+  margin-bottom: 2rem;
+  font-family: monospace;
+  min-height: 2.5rem;
+  letter-spacing: 1px;
+}
 
-<style scoped>
-.content {
+.typewriter-cursor {
+  display: inline-block;
+  width: 1ch;
+  animation: blink 1s steps(1) infinite;
+}
+
+@keyframes blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  51%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.page-container {
   padding: 20px;
 
   min-height: 100vh;
 }
 
-.disk-icon {
-  font-size: 50px;
-  color: var(--color-secundary);
-  margin-right: 10px;
-}
-
-.disks-container {
+.content {
   padding: 3vw 2vw;
   width: 80%;
   margin: 0 auto;
+  position: relative;
 }
 
-.disk-grid {
-  display: flex;
-  flex-wrap: wrap;
-  margin-top: 2vw;
-  gap: 2vw;
-  justify-content: center;
+.fade-disk-enter-active,
+.fade-disk-leave-active {
+  transition: opacity 0.5s ease;
 }
 
-.disk-card {
-  flex: 1 1 250px;
-  max-width: 300px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 1vw;
-  padding: 0.5vw;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  border: 0.2vw solid transparent;
-  box-shadow: 0 0.3vw 1vw rgba(0, 0, 0, 0.1);
-}
-
-.disk-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-}
-
-.disk-header {
-  display: flex;
-  align-items: center;
-  margin-bottom: 15px;
-}
-
-.disk-info h3 {
-  margin: 0px;
-  font-size: 25px;
-}
-
-.disk-info small {
-  font-size: 14px;
-  color: #666;
-}
-
-.disk-details {
-  display: grid;
-  grid-template-columns: 48% 48%;
-  gap: 2%;
-  margin-top: 1vw;
-}
-
-.detail-item {
-  background: rgba(255, 255, 255, 0.8);
-  padding: 10px;
-  border-radius: 8px;
-  text-align: center;
-}
-
-.detail-item .label {
-  font-size: 0.8rem;
-  color: #666;
-  margin-bottom: 5px;
-}
-
-.detail-item .value {
-  font-weight: bold;
-  color: #333;
+.fade-disk-enter-from,
+.fade-disk-leave-to {
+  opacity: 0;
 }
 </style>

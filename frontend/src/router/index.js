@@ -44,13 +44,13 @@ router.beforeEach(async (to, from, next) => {
 
     return next("/home");
   }
-
+  /*
   if (to.meta.requiresAuth && !user.value) {
     cleardisks();
     return next("/login");
-  }
+  }*/
 
-  if (to.meta.requiresAuth && user.value) {
+  if (to.meta.requiresAuth /*&& user.value*/) {
     cleardisks();
     const commandObj = {
       command: "disks",

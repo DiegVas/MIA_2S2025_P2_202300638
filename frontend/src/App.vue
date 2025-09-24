@@ -15,4 +15,8 @@
 .fade-leave-to {
   opacity: 0;
 }
+.fade-enter-to,
+.fade-leave-from {
+  opacity: 1;
+}
 </style>

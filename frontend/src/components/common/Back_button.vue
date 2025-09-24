@@ -4,11 +4,20 @@ const props = defineProps({
     type: String,
     default: "/",
   },
+  backFunction: {
+    type: Function,
+    default: null,
+  },
 });
 </script>
 
 <template>
-  <button class="back-button" @click="$router.push(props.route)">
+  <button
+    class="back-button"
+    @click="
+      props.backFunction ? props.backFunction() : $router.push(props.route)
+    "
+  >
     <svg
       width="16"
       height="16"

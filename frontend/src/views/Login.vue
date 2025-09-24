@@ -48,7 +48,7 @@ import Login_error from "../components/common/Login_error.vue";
 import Login_form from "../components/common/Login_form.vue";
 import { useUserStore } from "../store/user.js";
 import { useRouter } from "vue-router";
-import Back_button from "../components/layout/Back_button.vue";
+import Back_button from "../components/common/Back_button.vue";
 
 const router = useRouter();
 
