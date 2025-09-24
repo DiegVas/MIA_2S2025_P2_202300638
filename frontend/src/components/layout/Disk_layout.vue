@@ -4,72 +4,7 @@ import { usedisksStore } from "../../store/disks.js";
 const { disks, setSelectedDisk, selectedDisk, clearSelectedDisk } =
   usedisksStore();
 
-const disks_list = [
-  {
-    id: 1,
-    name: "sda",
-    size: 102400,
-    fit: "FF",
-    partitions: [
-      {
-        name: "part1",
-        size: 20480,
-        type: "P",
-        fit: "WF",
-        start: 0,
-        status: "0",
-      },
-      {
-        name: "part2",
-        size: 51200,
-        type: "E",
-        fit: "BF",
-        start: 20480,
-        status: "0",
-      },
-      {
-        name: "part3",
-        size: 30720,
-        type: "P",
-        fit: "FF",
-        start: 71680,
-        status: "0",
-      },
-    ],
-  },
-  {
-    id: 2,
-    name: "sdb",
-    size: 51200,
-    fit: "BF",
-    partitions: [
-      {
-        name: "part1",
-        size: 10240,
-        type: "P",
-        fit: "WF",
-        start: 0,
-        status: "0",
-      },
-      {
-        name: "part2",
-        size: 20480,
-        type: "P",
-        fit: "FF",
-        start: 10240,
-        status: "0",
-      },
-      {
-        name: "part3",
-        size: 20480,
-        type: "P",
-        fit: "BF",
-        start: 30720,
-        status: "0",
-      },
-    ],
-  },
-];
+const disks_list = disks.value.data ? disks.value.data : [];
 
 console.log("Disks in Disk_layout.vue:", disks_list);
 </script>

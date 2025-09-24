@@ -21,6 +21,8 @@ const $router = useRouter();
 const { disks, setSelectedDisk, selectedDisk, clearSelectedDisk } =
   usedisksStore();
 
+const disks_list = disks.value.data ? disks.value.data : [];
+
 const goBack = () => {
   if (selectedDisk.value === null) {
     $router.push("/");
@@ -69,8 +71,9 @@ const show = ref(true);
         Seleccionar {{ typewriterText }}<span class="typewriter-cursor">|</span>
       </div>
       <Transition name="fade-disk" mode="out-in">
-        <Disk_layout v-if="show" />
-        <Partition_layout v-else />
+        <div :key="selectedDisk ? 'partition' : 'disk'">
+          <component :is="selectedDisk ? Partition_layout : Disk_layout" />
+        </div>
       </Transition>
     </div>
   </div>
@@ -114,12 +117,10 @@ const show = ref(true);
   margin: 0 auto;
   position: relative;
 }
-
 .fade-disk-enter-active,
 .fade-disk-leave-active {
   transition: opacity 0.5s ease;
 }
-
 .fade-disk-enter-from,
 .fade-disk-leave-to {
   opacity: 0;
