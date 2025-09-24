@@ -39,6 +39,13 @@ func handleRmdisk(w http.ResponseWriter, command string) {
 		return
 	}
 
+	// ? Eliminar disco del registro ~/disks
+	err = utils.UnregisterDisk(params.Path)
+	if err != nil {
+		// Log el error pero no fallar la operación completa
+		fmt.Printf("Advertencia: No se pudo eliminar el disco del registro ~/disks: %s\n", err.Error())
+	}
+
 	confirmationMessage := fmt.Sprintf("Disco eliminado exitosamente - Path: %s", params.Path)
 
 	response := structs.Response{

@@ -31,7 +31,11 @@ const textareaRef = ref(null);
 const isFocused = ref(false);
 
 // Composables
-const { loadSmiaFile, isLoading: fileLoading, error: fileError } = useFileLoader();
+const {
+  loadSmiaFile,
+  isLoading: fileLoading,
+  error: fileError,
+} = useFileLoader();
 
 // Methods
 const handleInput = () => {
@@ -158,8 +162,21 @@ defineExpose({
           fill="none"
           viewBox="0 0 24 24"
         >
-          <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6l4 2" />
-          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" />
+          <path
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M12 6v6l4 2"
+          />
+          <circle
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            stroke-width="2"
+            fill="none"
+          />
         </svg>
       </button>
       <textarea
@@ -183,7 +200,12 @@ defineExpose({
         @click="handleSend"
         type="button"
       >
-        <svg class="send-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <svg
+          class="send-icon"
+          viewBox="0 0 24 24"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
           <path
             d="M7 11L12 6L17 11M12 18V7"
             stroke="currentColor"
@@ -195,7 +217,9 @@ defineExpose({
       </button>
     </div>
 
-    <div v-if="message.length > 0" class="char-counter">{{ message.length }} caracteres</div>
+    <div v-if="message.length > 0" class="char-counter">
+      {{ message.length }} caracteres
+    </div>
   </div>
 </template>
 

@@ -40,6 +40,12 @@ func HandlePostUser(w http.ResponseWriter, r *http.Request) {
 	case "logout":
 		handleLogout(w, command.Command)
 		return
+	case "sesion":
+		handleSesion(w, command.Command)
+		return
+	case "disks":
+		handleDisks(w)
+		return
 	}
 
 	commandBase := strings.Split(commandLower, " ")[0]

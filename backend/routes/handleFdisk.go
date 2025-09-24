@@ -37,6 +37,13 @@ func handleFdisk(w http.ResponseWriter, command string) {
 		return
 	}
 
+	// ? Registrar partición en el disco correspondiente
+	err = utils.RegisterPartition(params.Path, params.Name)
+	if err != nil {
+		// Log el error pero no fallar la operación completa
+		fmt.Printf("Advertencia: No se pudo registrar la partición en ~/disks: %s\n", err.Error())
+	}
+
 	confirmationMessage := fmt.Sprintf("Partición creada exitosamente - Name: %s, Size: %d, Type: %c, Path: %s",
 		params.Name, params.Size, params.Type, params.Path)
 

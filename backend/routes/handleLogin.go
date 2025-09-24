@@ -74,3 +74,34 @@ func handleLogout(w http.ResponseWriter, command string) {
 
 	utils.SendJSONResponse(w, response, http.StatusOK)
 }
+
+func handleSesion(w http.ResponseWriter, command string) {
+	if command != "sesion" {
+		response := structs.Response{
+			Message: "Comando no reconocido. El comando 'sesion' es el único permitido.",
+			Data:    nil,
+			Type:    "system-error",
+		}
+
+		utils.SendJSONResponse(w, response, http.StatusBadRequest)
+		return
+	}
+
+	user := structs.GetSession()
+	if !user.Active {
+		response := structs.Response{
+			Message: "No hay sesión activa",
+			Data:    nil,
+			Type:    "auth-error",
+		}
+		utils.SendJSONResponse(w, response, http.StatusUnauthorized)
+		return
+	}
+
+	response := structs.Response{
+		Message: "usuario= " + user.User,
+		Data:    user,
+		Type:    "auth-success",
+	}
+	utils.SendJSONResponse(w, response, http.StatusOK)
+}

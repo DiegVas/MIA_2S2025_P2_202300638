@@ -1,20 +1,7 @@
 <template>
   <div class="login-wrapper">
-    <button class="back-button" @click="$router.push('/')">
-      <svg
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-      >
-        <path d="M19 12H5M12 19l-7-7 7-7" />
-      </svg>
-      Atrás
-    </button>
-
     <div class="login-container">
+      <Back_button />
       <svg
         xmlns="http://www.w3.org/2000/svg"
         width="16"
@@ -32,70 +19,18 @@
         <h1>¡Hola, bienvenido!</h1>
       </div>
 
-      <form @submit.prevent="handleSubmit">
-        <div
-          class="form-group"
-          :style="{
-            transform:
-              focusedField === 'userId' ? 'translateY(-2px)' : 'translateY(0)',
-          }"
-        >
-          <label for="user-id">ID de Usuario</label>
-          <input
-            type="text"
-            id="user-id"
-            v-model="formData.userId"
-            placeholder="Ingresa tu ID"
-            @focus="focusedField = 'userId'"
-            @blur="focusedField = null"
-            :disabled="isLoading"
-          />
-        </div>
+      <Login_error :errorMsg="errorMsg" @cerrarError="cerrarError" />
 
-        <div
-          class="form-group"
-          :style="{
-            transform:
-              focusedField === 'email' ? 'translateY(-2px)' : 'translateY(0)',
-          }"
-        >
-          <label for="email">Tu correo electrónico</label>
-          <input
-            type="email"
-            id="email"
-            v-model="formData.email"
-            placeholder="nombre@ejemplo.com"
-            @focus="focusedField = 'email'"
-            @blur="focusedField = null"
-            :disabled="isLoading"
-          />
-        </div>
-
-        <div
-          class="form-group"
-          :style="{
-            transform:
-              focusedField === 'password'
-                ? 'translateY(-2px)'
-                : 'translateY(0)',
-          }"
-        >
-          <label for="password">Contraseña</label>
-          <input
-            type="password"
-            id="password"
-            v-model="formData.password"
-            placeholder="••••••••"
-            @focus="focusedField = 'password'"
-            @blur="focusedField = null"
-            :disabled="isLoading"
-          />
-        </div>
-
-        <button type="submit" class="sign-in-button" :disabled="isLoading">
-          {{ isLoading ? "Iniciando sesión..." : "Iniciar Sesión" }}
-        </button>
-      </form>
+      <login_form
+        :formData="formData"
+        :fieldErrors="fieldErrors"
+        :isLoading="isLoading"
+        :focusedField="focusedField"
+        @update:formData="updateFormData"
+        @update:focusedField="(value) => (focusedField = value)"
+        @clearFieldError="clearFieldError"
+        @submit="handleSubmit"
+      />
 
       <div class="terms">
         Al continuar, reconoces que has leído y aceptas nuestros<br />
@@ -106,77 +41,172 @@
   </div>
 </template>
 
-<script>
-export default {
-  name: "LoginInterface",
-  data() {
-    return {
-      formData: {
-        userId: "",
-        email: "",
-        password: "",
-      },
-      focusedField: null,
-      isLoading: false,
+<script setup>
+import { ref, reactive } from "vue";
+import { sendCommand } from "../services/send_commands.ts";
+import Login_error from "../components/common/Login_error.vue";
+import Login_form from "../components/common/Login_form.vue";
+import { useUserStore } from "../store/user.js";
+import { useRouter } from "vue-router";
+import Back_button from "../components/layout/Back_button.vue";
+
+const router = useRouter();
+
+const { setUser } = useUserStore();
+
+// Estado reactivo
+const formData = reactive({
+  partitionId: "",
+  user: "",
+  password: "",
+});
+
+const focusedField = ref(null);
+const isLoading = ref(false);
+
+// Estado para notificación de error
+const errorMsg = ref("");
+const errorTimer = ref(null);
+
+// Errores específicos por campo
+const fieldErrors = reactive({
+  partitionId: "",
+  user: "",
+  password: "",
+});
+
+// Emits
+const emit = defineEmits(["login-success", "error", "go-back"]);
+
+// Métodos
+const handleSubmit = async () => {
+  console.log("Intentando iniciar sesión con:", formData);
+
+  // Limpiar errores previos
+  clearAllErrors();
+
+  // Validaciones individuales
+  let hasErrors = false;
+
+  if (!formData.partitionId.trim()) {
+    fieldErrors.partitionId = "El ID de la partición es requerido";
+    hasErrors = true;
+  }
+
+  if (!formData.user.trim()) {
+    fieldErrors.user = "El usuario es requerido";
+    hasErrors = true;
+  }
+
+  if (!formData.password) {
+    fieldErrors.password = "La contraseña es requerida";
+    hasErrors = true;
+  }
+
+  if (hasErrors) {
+    mostrarError("Por favor, completa todos los campos correctamente");
+    return;
+  }
+
+  isLoading.value = true;
+  console.log("isLoading establecido a:", isLoading.value);
+
+  try {
+    const comman_parse =
+      "login -id=" +
+      formData.partitionId +
+      " -user=" +
+      formData.user +
+      " -pass=" +
+      formData.password;
+
+    const commandObj = {
+      command: comman_parse,
+      timestamp: new Date().toISOString(),
+      adjunt_file: null,
     };
-  },
-  methods: {
-    async handleSubmit() {
-      if (
-        !this.formData.userId ||
-        !this.formData.email ||
-        !this.formData.password
-      ) {
-        this.$emit("error", "Por favor, completa todos los campos");
-        return;
-      }
 
-      this.isLoading = true;
+    const system_response = await sendCommand(commandObj);
 
-      try {
-        // Simulación de proceso de login
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+    console.log("Login exitoso:", system_response);
 
-        // Emitir evento de login exitoso
-        this.$emit("login-success", {
-          userId: this.formData.userId,
-          email: this.formData.email,
-        });
-      } catch (error) {
-        this.$emit("error", "Error al iniciar sesión");
-      } finally {
-        this.isLoading = false;
-      }
-    },
+    if (
+      system_response.type === "system-error" ||
+      system_response.type === "auth-error"
+    ) {
+      mostrarError(
+        system_response.text || "Error desconocido al iniciar sesión"
+      );
+      return;
+    }
 
-    goBack() {
-      this.$emit("go-back");
-    },
+    // Emitir evento de login exitoso
+    emit("login-success", {
+      user: formData.user,
+      partitionId: formData.partitionId,
+    });
 
-    handleSignup() {
-      this.$emit("go-to-signup");
-    },
-
-    handleTerms() {
-      this.$emit("show-terms");
-    },
-
-    handlePrivacy() {
-      this.$emit("show-privacy");
-    },
-  },
-  emits: [
-    "login-success",
-    "error",
-    "go-back",
-    "go-to-signup",
-    "show-terms",
-    "show-privacy",
-  ],
+    setUser({
+      user: formData.user,
+      partitionId: formData.partitionId,
+    });
+    router.replace("/home");
+  } catch (error) {
+    console.error("Error al iniciar sesión:", error);
+    mostrarError("Error de conexión. Por favor, intenta nuevamente.");
+    return;
+  } finally {
+    isLoading.value = false;
+    console.log("isLoading establecido a:", isLoading.value);
+  }
 };
+
+// Función para mostrar notificación de error
+function mostrarError(msg) {
+  // Limpiar timer anterior si existe
+  if (errorTimer.value) {
+    clearTimeout(errorTimer.value);
+  }
+
+  errorMsg.value = msg;
+  errorTimer.value = setTimeout(() => {
+    errorMsg.value = "";
+    errorTimer.value = null;
+  }, 5000);
+}
+
+// Función para cerrar error manualmente
+function cerrarError() {
+  if (errorTimer.value) {
+    clearTimeout(errorTimer.value);
+    errorTimer.value = null;
+  }
+  errorMsg.value = "";
+}
+
+// Limpiar error de campo específico
+function clearFieldError(field) {
+  fieldErrors[field] = "";
+}
+
+// Limpiar todos los errores
+function clearAllErrors() {
+  Object.keys(fieldErrors).forEach((key) => {
+    fieldErrors[key] = "";
+  });
+}
+
+const goBack = () => {
+  emit("go-back");
+};
+
+function updateFormData(newData) {
+  Object.assign(formData, newData);
+}
 </script>
 
 <style scoped>
+/* Estilos base mantenidos */
 .login-wrapper {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
     Ubuntu, Cantarell, sans-serif;
@@ -193,28 +223,6 @@ export default {
   padding: 48px;
   width: 100%;
   max-width: 420px;
-}
-
-.back-button {
-  position: absolute;
-  top: 24px;
-  left: 24px;
-  background: none;
-  border: none;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 16px;
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 8px;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.back-button:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
 }
 
 .logo {
@@ -237,76 +245,6 @@ export default {
   font-size: 32px;
   font-weight: 700;
   margin-bottom: 16px;
-}
-
-.form-group {
-  margin-bottom: 24px;
-  transition: transform 0.3s ease;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 8px;
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.form-group input {
-  width: 100%;
-  padding: 16px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  color: white;
-  font-size: 16px;
-  transition: all 0.3s ease;
-  outline: none;
-}
-
-.form-group input:focus {
-  border-color: rgba(195, 221, 73, 1);
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 0 0 3px rgba(195, 221, 73, 0.4);
-}
-
-.form-group input::placeholder {
-  color: rgba(255, 255, 255, 0.4);
-}
-
-.form-group input:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.sign-in-button {
-  width: 100%;
-  padding: 18px;
-  background: var(--color-primary);
-  border: none;
-  border-radius: 12px;
-  color: var(--color-background);
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  margin-bottom: 24px;
-  box-shadow: 0 8px 16px rgba(195, 221, 73, 0.2);
-}
-
-.sign-in-button:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 24px rgba(195, 221, 73, 0.3);
-}
-
-.sign-in-button:active:not(:disabled) {
-  transform: translateY(0);
-}
-
-.sign-in-button:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-  transform: none;
 }
 
 .terms {
@@ -334,6 +272,13 @@ export default {
 
   .welcome-text h1 {
     font-size: 28px;
+  }
+
+  .notification-container {
+    top: 10px;
+    right: 10px;
+    left: 10px;
+    max-width: none;
   }
 }
 </style>

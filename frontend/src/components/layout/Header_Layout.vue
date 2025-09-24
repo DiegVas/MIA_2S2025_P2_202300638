@@ -1,9 +1,22 @@
-<script setup></script>
+<script setup>
+import { useUserStore } from "../../store/user.js";
+const { user } = useUserStore();
+</script>
 
 <template>
   <div class="header w-full justify-between items-center flex">
     <h1 class="text_header font-bold">ExtreamFS</h1>
+
     <button
+      v-if="user != null"
+      @click="$router.push('/home')"
+      class="login_btn"
+      title="Visualizar archivos"
+    >
+      Visualizar archivos
+    </button>
+    <button
+      v-if="user == null"
       @click="$router.push('/login')"
       class="login_btn"
       title="Iniciar sesión"

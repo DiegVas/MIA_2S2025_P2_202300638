@@ -6,7 +6,9 @@ interface SendCommand {
 
 export async function sendCommand(
   command: SendCommand
-): Promise<{ type: string; text: string; timestamp: Date } | undefined> {
+): Promise<
+  { type: string; text: string; timestamp: Date; data?: any } | undefined
+> {
   try {
     const response = await fetch("http://localhost:8080/command", {
       method: "POST",
@@ -29,6 +31,7 @@ export async function sendCommand(
         type: data.type,
         text: data.message,
         timestamp: new Date(),
+        data: data.data, // Incluir datos adicionales si los hay
       };
     } else {
       // Manejar errores HTTP pero con respuesta JSON válida
@@ -40,7 +43,8 @@ export async function sendCommand(
       };
     }
   } catch (error) {
-    const error_parse = error instanceof Error ? error.message : "Unknown error";
+    const error_parse =
+      error instanceof Error ? error.message : "Unknown error";
     // Manejar errores de red o parsing
     console.error("Network or parsing error:", error);
     return {
