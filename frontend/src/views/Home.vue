@@ -18,10 +18,7 @@ const typingIndex = ref(0);
 const typingInterval = ref(null);
 
 const $router = useRouter();
-const { disks, setSelectedDisk, selectedDisk, clearSelectedDisk } =
-  usedisksStore();
-
-const disks_list = disks.value.data ? disks.value.data : [];
+const { selectedDisk, clearSelectedDisk } = usedisksStore();
 
 const goBack = () => {
   if (selectedDisk.value === null) {
@@ -35,16 +32,28 @@ const goBack = () => {
 
 function startTypewriter(newTitle) {
   clearInterval(typingInterval.value);
-  typewriterText.value = "";
-  typingIndex.value = 0;
+  let current = typewriterText.value;
+  let phase = "deleting";
+  let i = current.length;
+  let j = 0;
+
   typingInterval.value = setInterval(() => {
-    if (typingIndex.value < newTitle.length) {
-      typewriterText.value += newTitle[typingIndex.value];
-      typingIndex.value++;
-    } else {
-      clearInterval(typingInterval.value);
+    if (phase === "deleting") {
+      if (i > 0) {
+        typewriterText.value = current.slice(0, i - 1);
+        i--;
+      } else {
+        phase = "writing";
+      }
+    } else if (phase === "writing") {
+      if (j < newTitle.length) {
+        typewriterText.value += newTitle[j];
+        j++;
+      } else {
+        clearInterval(typingInterval.value);
+      }
     }
-  }, 60); // velocidad de escritura
+  }, 60); // velocidad de animación
 }
 
 // Detecta cambios en selectedDisk y actualiza el título

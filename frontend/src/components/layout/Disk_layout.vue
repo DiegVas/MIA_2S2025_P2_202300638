@@ -1,23 +1,35 @@
 <script setup>
 import { usedisksStore } from "../../store/disks.js";
+import { sendCommand } from "../../services/send_commands.js";
 
 const { disks, setSelectedDisk, selectedDisk, clearSelectedDisk } =
   usedisksStore();
 
 const disks_list = disks.value.data ? disks.value.data : [];
 
-console.log("Disks in Disk_layout.vue:", disks_list);
+async function setDisk(disk) {
+  const command = `partdisk -path=${disk.path}`;
+
+  const commandObj = {
+    command: command,
+    timestamp: new Date().toISOString(),
+    adjunt_file: null,
+  };
+
+  const system_response = await sendCommand(commandObj);
+  disk.partitions = system_response.data ? system_response.data.partitions : [];
+
+  setSelectedDisk(disk);
+}
 </script>
 
 <template>
-  <!-- Disk Selection Page -->
-
   <div class="disk-grid">
     <div
       v-for="disk in disks_list"
       :key="disk.id"
       class="disk-card"
-      @click="setSelectedDisk(disk)"
+      @click="setDisk(disk)"
     >
       <div class="disk-header">
         <span class="material-symbols-outlined disk-icon"> hard_drive_2 </span>
@@ -47,7 +59,7 @@ console.log("Disks in Disk_layout.vue:", disks_list);
   </div>
 </template>
 
-<style scoped>
+<style>
 .disk-icon {
   font-size: 50px;
   color: var(--color-secundary);
@@ -65,7 +77,7 @@ console.log("Disks in Disk_layout.vue:", disks_list);
 .disk-card {
   flex: 1 1 250px;
   max-width: 300px;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.06);
   border-radius: 1vw;
   padding: 0.5vw;
   cursor: pointer;

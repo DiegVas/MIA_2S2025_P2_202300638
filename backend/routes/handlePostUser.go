@@ -53,6 +53,9 @@ func HandlePostUser(w http.ResponseWriter, r *http.Request) {
 	// ? Comandos con parámetros
 
 	switch commandBase {
+	case "partdisk":
+		handlePartdisk(w, command.Command)
+
 	case "mkdisk":
 		handleMkdisk(w, command.Command)
 	case "rmdisk":

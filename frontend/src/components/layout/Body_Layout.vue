@@ -16,7 +16,6 @@ const scrollToBottom = async () => {
 };
 
 const handleSendMessage = async (message) => {
-  console.log("Mensaje enviado:", message);
   messages.value.push({
     id: crypto.randomUUID(),
     text: message,
@@ -33,7 +32,6 @@ const handleSendMessage = async (message) => {
   };
 
   const system_response = await sendCommand(commandObj);
-  console.log("Respuesta del sistema:", system_response);
 
   messages.value.push({
     id: crypto.randomUUID(),
@@ -59,7 +57,6 @@ const handleFileLoaded = (content) => {
 };
 
 const handleExecuteCommand = async (command) => {
-  console.log("Ejecutando comando individual:", command);
   await handleSendMessage(command);
 };
 

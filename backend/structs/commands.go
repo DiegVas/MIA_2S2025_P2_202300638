@@ -92,3 +92,11 @@ type ViewUsersParams struct {
 func (p *ViewUsersParams) String() string {
 	return fmt.Sprintf("ID: %s", p.ID)
 }
+
+type PartdiskParams struct {
+	Path string // Ruta del disco
+}
+
+func (p *PartdiskParams) String() string {
+	return fmt.Sprintf("Path: %s", p.Path)
+}
