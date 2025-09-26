@@ -55,6 +55,8 @@ func HandlePostUser(w http.ResponseWriter, r *http.Request) {
 	switch commandBase {
 	case "ls":
 		handleLS(w, command.Command)
+	case "catfile":
+		handleCatFile(w, command.Command)
 	case "partdisk":
 		handlePartdisk(w, command.Command)
 	case "mkdisk":

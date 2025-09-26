@@ -2,11 +2,67 @@ package Analyzer
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
+	"strings"
 )
 
 type CatParams struct {
 	Files []string
+}
+
+type CatFileParams struct {
+	Files string
+	Path  string
+	Name  string
+}
+
+func ParseCatFile(command string) (*CatFileParams, error) {
+	params := &CatFileParams{
+		Files: "",
+		Path:  "",
+		Name:  "",
+	}
+
+	// Regex corregida para capturar parámetro=valor
+	re := regexp.MustCompile(`-(\w+)=(?:"([^"]+)"|([^\s]+))`)
+	matches := re.FindAllStringSubmatch(command, -1)
+
+	for _, match := range matches {
+		param := strings.ToLower(match[1]) // nombre del parámetro
+		var value string
+		if match[2] != "" {
+			value = match[2] // valor con comillas
+		} else {
+			value = match[3] // valor sin comillas
+		}
+
+		switch param {
+		case "path":
+			params.Path = value
+		case "name":
+			params.Name = value
+		case "file":
+			params.Files = value
+		default:
+			return nil, fmt.Errorf("parámetro no reconocido: %s", param)
+		}
+	}
+
+	// Validaciones
+	if params.Path == "" {
+		return nil, fmt.Errorf("el parámetro -path es requerido")
+	}
+
+	if params.Name == "" {
+		return nil, fmt.Errorf("el parámetro -name es requerido")
+	}
+
+	if params.Files == "" {
+		return nil, fmt.Errorf("el parámetro -file es requerido")
+	}
+
+	return params, nil
 }
 
 func ParseCat(command string) (*CatParams, error) {

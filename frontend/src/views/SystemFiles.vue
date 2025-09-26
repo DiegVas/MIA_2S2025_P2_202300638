@@ -1,40 +1,51 @@
 <script setup>
-import { watch } from "vue";
 import { useFileStore } from "../store/files.js";
+import { ref, watch } from "vue";
+import { startPathTypewriter } from "../services/startWriters.js";
+import File_layout from "../components/layout/File_layout.vue";
+import Directory_layout from "../components/layout/Directory_layout.vue";
 
-const { bodyPath, path, setPath, popPath } = useFileStore();
+const { path, fileContent } = useFileStore();
 
-const updatePath = async (fileName) => {
-  if (fileName === "..") {
-    await popPath();
-  } else {
-    await setPath(fileName);
-  }
-};
+const typewriterPath = ref("");
+const typingPathInterval = ref(null);
+
+// Ejemplo de uso con watch sobre path
+watch(
+  () => [...path.value],
+  (newVal, oldVal) => {
+    startPathTypewriter(newVal, oldVal, typingPathInterval, typewriterPath);
+  },
+  { immediate: true }
+);
 </script>
 
 <template>
   <div>
     <h1>Archivos del Sistema</h1>
-    <div class="path">{{ path.join("") }}</div>
-    <div class="files-grid">
-      <div
-        class="file-card"
-        v-for="file in bodyPath"
-        :key="file.name"
-        @click="updatePath(file.name)"
-      >
-        <p>{{ file.name }}</p>
-        <p>{{ file.size }} bytes</p>
-        <p>{{ file.date }}</p>
-        <p>{{ file.file_type }}</p>
+    <div class="typewriter-path">{{ typewriterPath }}</div>
+
+    <Transition name="fade" mode="out-in">
+      <div :key="fileContent ? 'fileContent' : 'directory'">
+        <component :is="fileContent ? File_layout : Directory_layout" />
       </div>
-    </div>
+    </Transition>
   </div>
 </template>
 
 <style scoped>
-.path {
+.type-icon {
+  font-size: 80px;
+  color: var(--color-secundary);
+}
+
+.file-name {
+  margin: 8px 0 4px 0;
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: var(--color-text);
+}
+.typewriter-path {
   font-family: monospace;
   font-size: 1.2rem;
   color: var(--color-background);
@@ -46,24 +57,24 @@ const updatePath = async (fileName) => {
   display: flex;
   align-items: center;
   justify-content: start;
+  position: relative;
 }
 
-.file-card {
-  flex: 1 1 250px;
-  max-width: 300px;
-  background: rgba(255, 255, 255, 0.06);
-  border-radius: 1vw;
-  padding: 0.5vw;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  border: 0.2vw solid transparent;
-  box-shadow: 0 0.3vw 1vw rgba(0, 0, 0, 0.1);
+.typewriter-path::after {
+  content: "|";
+  animation: blink-cursor 1s steps(1) infinite;
+  margin-left: 2px;
+  color: var(--color-text);
 }
 
-.files-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
-  margin-top: 20px;
+@keyframes blink-cursor {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  51%,
+  100% {
+    opacity: 0;
+  }
 }
 </style>

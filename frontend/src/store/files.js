@@ -7,6 +7,8 @@ const bodyPath = ref(null);
 const diskPath = ref(null);
 const partitionName = ref(null);
 
+const fileContent = ref(null);
+
 /*
 const comman_parse =
   "login -id=" +
@@ -38,6 +40,19 @@ export function useFileStore() {
     bodyPath.value = revisedBodyPath;
     localStorage.setItem("bodyPath", JSON.stringify(revisedBodyPath));
     console.log("bodyPath guardado:", bodyPath.value);
+  }
+
+  function setPathFile(fileName) {
+    let fullPath = "";
+    let newPathValue = fileName;
+    if (path.value.length == 1) {
+      fullPath = path.value[0] + fileName;
+    } else {
+      fullPath = path.value.join("") + "/" + fileName;
+      newPathValue = "/" + fileName;
+    }
+
+    path.value.push(newPathValue);
   }
 
   async function setPath(newPath) {
@@ -77,6 +92,54 @@ export function useFileStore() {
 
     console.log("Path actualizado:", fullPath);
   }
+  async function fetchFileContent(fileName) {
+    let fullPath = "";
+    if (path.value.length == 1) {
+      fullPath = path.value[0] + fileName;
+    } else {
+      fullPath = path.value.join("") + "/" + fileName;
+    }
+
+    const commandObj = {
+      command:
+        "catfile -path=" +
+        diskPath.value +
+        " -name=" +
+        partitionName.value +
+        " -file=" +
+        fullPath,
+      timestamp: new Date().toISOString(),
+      adjunt_file: null,
+    };
+
+    const system_response = await sendCommand(commandObj);
+
+    if (system_response.type === "system-error") {
+      console.error("Error del sistema:", system_response.message);
+      clearSelectedPartition();
+      return false;
+    }
+
+    fileContent.value = system_response.text;
+    console.log("Contenido del archivo:", fileContent.value);
+
+    if (fileContent.value === "") {
+      fileContent.value = "[Archivo vacío]";
+    }
+
+    return true;
+  }
+
+  function clearFileContent() {
+    fileContent.value = null;
+
+    let fullPath = "";
+    if (path.value.length > 1) {
+      path.value.pop();
+      localStorage.setItem("path", JSON.stringify(path.value));
+    }
+    fullPath = path.value.join("");
+  }
 
   async function fetchDirectoryEntries(fullPath) {
     const commandObj = {
@@ -110,9 +173,13 @@ export function useFileStore() {
     popPath,
 
     setbodyPath,
+    fetchFileContent,
+    clearFileContent,
+    setPathFile,
 
     diskPath,
     partitionName,
     bodyPath,
+    fileContent,
   };
 }

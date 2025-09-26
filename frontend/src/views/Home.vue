@@ -4,6 +4,7 @@ import Disk_layout from "../components/layout/Disk_layout.vue";
 import Partition_layout from "../components/layout/Partition_layout.vue";
 import SystemFiles from "./SystemFiles.vue";
 import { useRouter } from "vue-router";
+import { startTypewriter } from "../services/startWriters.js";
 import { usedisksStore } from "../store/disks.js";
 import { useFileStore } from "../store/files.js";
 import { ref } from "vue";
@@ -44,40 +45,14 @@ const goBack = () => {
   }
 };
 
-function startTypewriter(newTitle) {
-  clearInterval(typingInterval.value);
-  let current = typewriterText.value;
-  let phase = "deleting";
-  let i = current.length;
-  let j = 0;
-
-  typingInterval.value = setInterval(() => {
-    if (phase === "deleting") {
-      if (i > 0) {
-        typewriterText.value = current.slice(0, i - 1);
-        i--;
-      } else {
-        phase = "writing";
-      }
-    } else if (phase === "writing") {
-      if (j < newTitle.length) {
-        typewriterText.value += newTitle[j];
-        j++;
-      } else {
-        clearInterval(typingInterval.value);
-      }
-    }
-  }, 60); // velocidad de animación
-}
-
 // ? Detecta cambios en selectedDisk y actualiza el título
 watch(
   () => selectedDisk.value,
   (newVal) => {
     if (newVal) {
-      startTypewriter(titles.particion);
+      startTypewriter(titles.particion, typingInterval, typewriterText);
     } else {
-      startTypewriter(titles.disco);
+      startTypewriter(titles.disco, typingInterval, typewriterText);
     }
   },
   { immediate: true }

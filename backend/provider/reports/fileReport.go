@@ -19,7 +19,7 @@ func generateFileTextReport(params *structs.RepParams) (string, error) {
 
 	// Usar la función ReadFileContent existente para leer el contenido del archivo
 	// Nota: Esta función requiere que haya una sesión activa y usa la partición montada de la sesión
-	fileContent, err := files.ReadFileContent(params.PathFileLS)
+	fileContent, err := files.ReadFileContent(params.PathFileLS, "")
 	if err != nil {
 		return "", fmt.Errorf("error leyendo el archivo '%s': %v", params.PathFileLS, err)
 	}

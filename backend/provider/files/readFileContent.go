@@ -12,14 +12,23 @@ import (
 	"strings"
 )
 
-func ReadFileContent(filePath string) (string, error) {
+func ReadFileContent(filePath string, idPartition string) (string, error) {
 	// Verificar que haya una sesión activa
 	session := structs.GetSession()
-	if !session.Active {
+	if !session.Active && idPartition == "" {
 		return "", errors.New("debe iniciar sesión para usar el comando CAT")
 	} // Obtener la partición montada
+
+	idP := ""
+
+	if idPartition != "" {
+		idP = idPartition
+	} else {
+		idP = session.ID
+	}
+
 	mountManager := mounted.GetMountManager()
-	partition, partitionFound := mountManager.GetMountedPartition(session.ID)
+	partition, partitionFound := mountManager.GetMountedPartition(idP)
 	if !partitionFound {
 		return "", errors.New("no hay ninguna partición montada para esta sesión")
 	}
@@ -87,11 +96,11 @@ func ReadFileContent(filePath string) (string, error) {
 
 	// Verificar permisos de lectura
 	currentUser, err := GetCurrentUserInfo(session, partition)
-	if err != nil {
+	if err != nil && idPartition == "" {
 		return "", fmt.Errorf("error al obtener información del usuario: %v", err)
 	}
 
-	if !hasReadPermission(inode, currentUser) {
+	if !hasReadPermission(inode, currentUser) && idPartition == "" {
 		return "", errors.New("no tiene permisos de lectura para este archivo")
 	}
 
