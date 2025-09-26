@@ -1,5 +1,6 @@
 import { ref } from "vue";
 import { sendCommand } from "../services/send_commands.ts";
+import { useFileStore } from "./files.js";
 
 const disks = ref(null);
 const selectedDisk = ref(null);
@@ -29,10 +30,30 @@ export function usedisksStore() {
     console.log("Disco seleccionado limpiado:", selectedDisk.value);
   }
 
-  function setSelectedPartition(partition) {
+  async function setSelectedPartition(partition) {
     localStorage.setItem("selectedPartition", JSON.stringify(partition));
     selectedPartition.value = partition;
     console.log("Partición seleccionada:", selectedPartition.value);
+
+    const commandObj = {
+      command:
+        "ls -path=" +
+        selectedDisk.value.path +
+        " -name=" +
+        selectedPartition.value.name +
+        " -of=/",
+      timestamp: new Date().toISOString(),
+      adjunt_file: null,
+    };
+    const system_response = await sendCommand(commandObj);
+
+    if (system_response.type == "system-error") {
+      console.error("Error del sistema:", system_response.message);
+      clearSelectedPartition();
+      return null;
+    }
+
+    return system_response.data.entries;
   }
 
   function clearSelectedPartition() {

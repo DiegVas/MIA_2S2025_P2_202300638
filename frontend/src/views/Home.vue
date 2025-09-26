@@ -1,10 +1,11 @@
 <script setup>
 import Back_button from "../components/common/Back_button.vue";
-import { usedisksStore } from "../store/disks.js";
 import Disk_layout from "../components/layout/Disk_layout.vue";
 import Partition_layout from "../components/layout/Partition_layout.vue";
 import SystemFiles from "./SystemFiles.vue";
 import { useRouter } from "vue-router";
+import { usedisksStore } from "../store/disks.js";
+import { useFileStore } from "../store/files.js";
 import { ref } from "vue";
 import { computed } from "vue";
 import { watch } from "vue";
@@ -18,13 +19,16 @@ const typewriterText = ref("");
 const typingIndex = ref(0);
 const typingInterval = ref(null);
 
-const $router = useRouter();
 const {
   selectedDisk,
   clearSelectedDisk,
   selectedPartition,
   clearSelectedPartition,
 } = usedisksStore();
+
+const $router = useRouter();
+
+const { clearPath } = useFileStore();
 
 const goBack = () => {
   if (selectedDisk.value === null) {
@@ -35,6 +39,7 @@ const goBack = () => {
     return;
   } else {
     clearSelectedPartition();
+    clearPath();
     return;
   }
 };
@@ -65,7 +70,7 @@ function startTypewriter(newTitle) {
   }, 60); // velocidad de animación
 }
 
-// Detecta cambios en selectedDisk y actualiza el título
+// ? Detecta cambios en selectedDisk y actualiza el título
 watch(
   () => selectedDisk.value,
   (newVal) => {

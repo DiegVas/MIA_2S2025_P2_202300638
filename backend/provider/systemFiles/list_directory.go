@@ -2,6 +2,7 @@ package SystemFiles
 
 import (
 	"fmt"
+	"strings"
 
 	"main/provider/mounted"
 	"main/provider/reports"
@@ -12,9 +13,16 @@ import (
 
 // DirectoryListing representa el resultado del listado
 type DirectoryListing struct {
-	Path      string                   `json:"path"`
-	Entries   []reports.DirectoryEntry `json:"entries"`
-	IsMounted bool                     `json:"is_mounted"`
+	Path      string          `json:"path"`
+	Entries   []DirectoryData `json:"entries"`
+	IsMounted bool            `json:"is_mounted"`
+}
+
+type DirectoryData struct {
+	Date     string `json:"date"`
+	Size     string `json:"size"`
+	FileType string `json:"file_type"`
+	Name     string `json:"name"`
 }
 
 // ListDirectory lista el contenido de un directorio en una partición montada
@@ -96,10 +104,45 @@ func ListDirectory(params *structs.LSParams) (*DirectoryListing, error) {
 
 	fmt.Printf("DEBUG - Entradas encontradas en '%s': %d\n", params.Of, len(entries))
 
+	directoryResult := []DirectoryData{}
+
+	for _, entry := range entries {
+		if entry.Name == "" {
+			continue
+		}
+
+		entryInode, err := reports.ReadInodeAt(file, entry.InodeNum, superblock.S_inode_start)
+		if err != nil {
+			fmt.Printf("DEBUG - ERROR leyendo inodo de entrada '%s': %v\n", entry.Name, err)
+			continue
+		}
+
+		size := fmt.Sprintf("%d", entryInode.I_size)
+
+		date := strings.TrimRight(string(entryInode.I_ctime[:]), "\x00")
+
+		fileType := "file"
+		if entryInode.I_type == 1 {
+			fileType = "directory"
+		}
+
+		directoryResult = append(directoryResult, DirectoryData{
+			Date:     date,
+			Size:     size,
+			FileType: fileType,
+			Name:     entry.Name,
+		})
+
+	}
+
 	// Retornar el listado
+
+	fmt.Printf("DEBUG - ListDirectory completado. Total entradas: %d\n", len(directoryResult))
+
+	fmt.Printf("DEBUG - ListDirectory contenido: %+v\n", directoryResult)
 
 	return &DirectoryListing{
 		Path:    params.Of,
-		Entries: entries,
+		Entries: directoryResult,
 	}, nil
 }

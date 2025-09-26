@@ -23,7 +23,6 @@ export async function sendCommand(
 
     // Leer la respuesta JSON independientemente del status
     const data = await response.json();
-    console.log("Response data:", data);
 
     if (response.ok) {
       console.log("Command sent successfully:", data);

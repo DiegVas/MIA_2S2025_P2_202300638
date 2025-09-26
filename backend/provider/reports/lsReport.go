@@ -5,7 +5,6 @@ import (
 	"main/provider/mounted"
 	"os"
 	"strings"
-	"time"
 )
 
 func generateLSReport(partitionID, dirPath string) (string, error) {
@@ -110,14 +109,7 @@ func generateLSReport(partitionID, dirPath string) (string, error) {
 		size := fmt.Sprintf("%d", entryInode.I_size)
 
 		// Formatear fecha de creación
-		creationTime := strings.TrimRight(string(entryInode.I_ctime[:]), "\x00")
-		date := "N/A"
-
-		if creationTime != "" {
-			if t, err := time.Parse("2006-01-02 15:04:05", creationTime); err == nil {
-				date = t.Format("2006-01-02")
-			}
-		}
+		date := strings.TrimRight(string(entryInode.I_ctime[:]), "\x00")
 
 		// Determinar tipo
 		fileType := "file"

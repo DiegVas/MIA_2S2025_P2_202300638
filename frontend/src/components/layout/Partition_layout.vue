@@ -1,9 +1,18 @@
 <script setup>
 import { usedisksStore } from "../../store/disks.js";
+import { useFileStore } from "../../store/files.js";
 
 const { selectedDisk, setSelectedPartition } = usedisksStore();
 
+const { diskPath, partitionName, setbodyPath } = useFileStore();
+
 console.log("Selected Disk in Partition_layout.vue:", selectedDisk);
+
+const initDirectory = async (partition) => {
+  diskPath.value = selectedDisk.value.path;
+  partitionName.value = partition.name;
+  setbodyPath(await setSelectedPartition(partition));
+};
 </script>
 
 <template>
@@ -12,7 +21,7 @@ console.log("Selected Disk in Partition_layout.vue:", selectedDisk);
       v-for="partition in selectedDisk.partitions"
       :key="partition.name"
       class="disk-card"
-      @click="setSelectedPartition(partition)"
+      @click="initDirectory(partition)"
     >
       <span
         class="partition-status"
