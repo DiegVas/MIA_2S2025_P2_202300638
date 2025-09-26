@@ -1,7 +1,9 @@
 import { ref } from "vue";
+import { sendCommand } from "../services/send_commands.ts";
 
 const disks = ref(null);
 const selectedDisk = ref(null);
+const selectedPartition = ref(null);
 
 export function usedisksStore() {
   function setdisks(u) {
@@ -27,6 +29,18 @@ export function usedisksStore() {
     console.log("Disco seleccionado limpiado:", selectedDisk.value);
   }
 
+  function setSelectedPartition(partition) {
+    localStorage.setItem("selectedPartition", JSON.stringify(partition));
+    selectedPartition.value = partition;
+    console.log("Partición seleccionada:", selectedPartition.value);
+  }
+
+  function clearSelectedPartition() {
+    selectedPartition.value = null;
+    localStorage.removeItem("selectedPartition");
+    console.log("Partición seleccionada limpiada:", selectedPartition.value);
+  }
+
   return {
     disks,
     setdisks,
@@ -34,5 +48,8 @@ export function usedisksStore() {
     selectedDisk,
     setSelectedDisk,
     clearSelectedDisk,
+    selectedPartition,
+    setSelectedPartition,
+    clearSelectedPartition,
   };
 }

@@ -3,6 +3,7 @@ import Back_button from "../components/common/Back_button.vue";
 import { usedisksStore } from "../store/disks.js";
 import Disk_layout from "../components/layout/Disk_layout.vue";
 import Partition_layout from "../components/layout/Partition_layout.vue";
+import SystemFiles from "./SystemFiles.vue";
 import { useRouter } from "vue-router";
 import { ref } from "vue";
 import { computed } from "vue";
@@ -18,14 +19,22 @@ const typingIndex = ref(0);
 const typingInterval = ref(null);
 
 const $router = useRouter();
-const { selectedDisk, clearSelectedDisk } = usedisksStore();
+const {
+  selectedDisk,
+  clearSelectedDisk,
+  selectedPartition,
+  clearSelectedPartition,
+} = usedisksStore();
 
 const goBack = () => {
   if (selectedDisk.value === null) {
     $router.push("/");
     return;
-  } else {
+  } else if (selectedPartition.value === null) {
     clearSelectedDisk();
+    return;
+  } else {
+    clearSelectedPartition();
     return;
   }
 };
@@ -68,23 +77,25 @@ watch(
   },
   { immediate: true }
 );
-
-const show = ref(true);
 </script>
 
 <template>
   <div class="page-container flex self-center justify-center w-full relative">
     <Back_button :backFunction="goBack" />
-    <div class="content">
-      <div class="typewriter-title">
-        Seleccionar {{ typewriterText }}<span class="typewriter-cursor">|</span>
-      </div>
-      <Transition name="fade-disk" mode="out-in">
-        <div :key="selectedDisk ? 'partition' : 'disk'">
-          <component :is="selectedDisk ? Partition_layout : Disk_layout" />
+    <Transition name="fade-disk" mode="out-in">
+      <SystemFiles v-if="selectedPartition" class="content" />
+      <div class="content" v-else>
+        <div class="typewriter-title">
+          Seleccionar {{ typewriterText
+          }}<span class="typewriter-cursor">|</span>
         </div>
-      </Transition>
-    </div>
+        <Transition name="fade-disk" mode="out-in">
+          <div :key="selectedDisk ? 'partition' : 'disk'">
+            <component :is="selectedDisk ? Partition_layout : Disk_layout" />
+          </div>
+        </Transition>
+      </div>
+    </Transition>
   </div>
 </template>
 <style>

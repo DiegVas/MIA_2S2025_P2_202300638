@@ -58,7 +58,7 @@ func readUsersFile(file *os.File, superblock *structs.Superblock) (map[int32]Use
 	}
 
 	// Leer el inodo del archivo users.txt
-	usersInode, err := readInodeAt(file, usersInodeNum, superblock.S_inode_start)
+	usersInode, err := ReadInodeAt(file, usersInodeNum, superblock.S_inode_start)
 	if err != nil {
 		return usersMap, fmt.Errorf("error leyendo inodo de users.txt: %v", err)
 	}

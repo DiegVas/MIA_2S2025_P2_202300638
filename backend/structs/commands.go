@@ -100,3 +100,13 @@ type PartdiskParams struct {
 func (p *PartdiskParams) String() string {
 	return fmt.Sprintf("Path: %s", p.Path)
 }
+
+type LSParams struct {
+	Path string // Ruta del disco
+	Name string // Nombre de la partición
+	Of   string // Ruta dentro de la partición
+}
+
+func (p *LSParams) String() string {
+	return fmt.Sprintf("Path: %s, Name: %s, Of: %s", p.Path, p.Name, p.Of)
+}

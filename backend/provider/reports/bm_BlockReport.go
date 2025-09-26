@@ -18,7 +18,7 @@ func generateBMBlockTextReport(params *structs.RepParams) (string, error) {
 	}
 
 	// Leer el superbloque
-	superblock, err := readSuperblock(mountedPartition.Path, params.ID)
+	superblock, err := ReadSuperblock(mountedPartition.Path, params.ID)
 	if err != nil {
 		return "", fmt.Errorf("error leyendo superbloque: %v", err)
 	}

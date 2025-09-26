@@ -22,7 +22,7 @@ func generateLSReport(partitionID, dirPath string) (string, error) {
 	}
 
 	// Leer el superbloque
-	superblock, err := readSuperblock(mountedPartition.Path, partitionID)
+	superblock, err := ReadSuperblock(mountedPartition.Path, partitionID)
 	if err != nil {
 		return "", fmt.Errorf("error leyendo superbloque: %v", err)
 	}
@@ -35,13 +35,13 @@ func generateLSReport(partitionID, dirPath string) (string, error) {
 	defer file.Close()
 
 	// Buscar el inodo del directorio especificado
-	dirInodeNum, err := findInodeByPath(file, dirPath, superblock)
+	dirInodeNum, err := FindInodeByPath(file, dirPath, superblock)
 	if err != nil {
 		return "", fmt.Errorf("error encontrando directorio '%s': %v", dirPath, err)
 	}
 
 	// Leer el inodo del directorio
-	dirInode, err := readInodeAt(file, dirInodeNum, superblock.S_inode_start)
+	dirInode, err := ReadInodeAt(file, dirInodeNum, superblock.S_inode_start)
 	if err != nil {
 		return "", fmt.Errorf("error leyendo inodo del directorio: %v", err)
 	}
@@ -52,7 +52,7 @@ func generateLSReport(partitionID, dirPath string) (string, error) {
 	}
 
 	// Obtener entradas del directorio
-	entries, err := getDirectoryEntries(file, dirInode, superblock)
+	entries, err := GetDirectoryEntries(file, dirInode, superblock)
 	if err != nil {
 		return "", fmt.Errorf("error leyendo entradas del directorio: %v", err)
 	}
@@ -91,7 +91,7 @@ func generateLSReport(partitionID, dirPath string) (string, error) {
 		}
 
 		// Leer el inodo de la entrada
-		entryInode, err := readInodeAt(file, entry.InodeNum, superblock.S_inode_start)
+		entryInode, err := ReadInodeAt(file, entry.InodeNum, superblock.S_inode_start)
 		if err != nil {
 			continue // Saltar entradas con error
 		}

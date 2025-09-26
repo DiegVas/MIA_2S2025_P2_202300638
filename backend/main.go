@@ -9,9 +9,9 @@ import (
 )
 
 func main() {
-    http.HandleFunc("/command", utils.CORSMiddleware(routes.HandlePostUser))     // POST
+	http.HandleFunc("/command", utils.CORSMiddleware(routes.HandlePostUser)) // POST
 
-    // Iniciar servidor
-    fmt.Println("Servidor iniciado en http://localhost:8080")
-    log.Fatal(http.ListenAndServe(":8080", nil))
+	// Iniciar servidor
+	fmt.Println("Servidor iniciado en http://localhost:8080")
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }

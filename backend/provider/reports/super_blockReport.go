@@ -19,7 +19,7 @@ func generateSuperblockReport(partitionID string) (string, error) {
 	}
 
 	// Leer el superbloque para obtener información del sistema de archivos
-	superblock, err := readSuperblock(mountedPartition.Path, partitionID)
+	superblock, err := ReadSuperblock(mountedPartition.Path, partitionID)
 	if err != nil {
 		return "", fmt.Errorf("error leyendo superbloque: %v", err)
 	}
@@ -101,7 +101,7 @@ func generateSuperblockReport(partitionID string) (string, error) {
 	return dot.String(), nil
 }
 
-func readSuperblock(diskPath, partitionID string) (*structs.Superblock, error) {
+func ReadSuperblock(diskPath, partitionID string) (*structs.Superblock, error) {
 
 	// Obtener información de la partición montada para encontrar el superbloque
 	mountManager := mounted.GetMountManager()

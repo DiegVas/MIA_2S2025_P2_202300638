@@ -1,7 +1,7 @@
 <script setup>
 import { usedisksStore } from "../../store/disks.js";
 
-const { selectedDisk } = usedisksStore();
+const { selectedDisk, setSelectedPartition } = usedisksStore();
 
 console.log("Selected Disk in Partition_layout.vue:", selectedDisk);
 </script>
@@ -12,6 +12,7 @@ console.log("Selected Disk in Partition_layout.vue:", selectedDisk);
       v-for="partition in selectedDisk.partitions"
       :key="partition.name"
       class="disk-card"
+      @click="setSelectedPartition(partition)"
     >
       <span
         class="partition-status"

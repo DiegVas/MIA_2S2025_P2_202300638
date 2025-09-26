@@ -107,7 +107,7 @@ func generateUsedInodes(file *os.File, superblock *structs.Superblock, bitmap []
 	for i := int32(0); i < superblock.S_inodes_count; i++ {
 		if i < int32(len(bitmap)) && bitmap[i] == 1 {
 			// Este inodo está en uso, leerlo
-			inode, err := readInodeAt(file, i, superblock.S_inode_start)
+			inode, err := ReadInodeAt(file, i, superblock.S_inode_start)
 			if err != nil {
 				continue // Saltar este inodo si hay error
 			}
@@ -128,7 +128,7 @@ func generateInodeBlockConnections(file *os.File, superblock *structs.Superblock
 	for i := int32(0); i < superblock.S_inodes_count; i++ {
 		if i < int32(len(inodeBitmap)) && inodeBitmap[i] == 1 {
 			// Este inodo está en uso, leer sus bloques
-			inode, err := readInodeAt(file, i, superblock.S_inode_start)
+			inode, err := ReadInodeAt(file, i, superblock.S_inode_start)
 			if err != nil {
 				continue
 			}
@@ -562,7 +562,7 @@ type DirectoryEntry struct {
 }
 
 // findInodeByPath encuentra el número de inodo de un archivo/directorio dado su path
-func findInodeByPath(file *os.File, path string, superblock *structs.Superblock) (int32, error) {
+func FindInodeByPath(file *os.File, path string, superblock *structs.Superblock) (int32, error) {
 
 	if path == "/" {
 		return 0, nil // El inodo raíz es siempre 0
@@ -578,7 +578,7 @@ func findInodeByPath(file *os.File, path string, superblock *structs.Superblock)
 		}
 
 		// Leer el inodo actual
-		currentInode, err := readInodeAt(file, currentInodeNum, superblock.S_inode_start)
+		currentInode, err := ReadInodeAt(file, currentInodeNum, superblock.S_inode_start)
 		if err != nil {
 			return -1, fmt.Errorf("error leyendo inodo %d: %v", currentInodeNum, err)
 		}
@@ -639,7 +639,7 @@ func findInodeByPath(file *os.File, path string, superblock *structs.Superblock)
 }
 
 // readInodeAt lee un inodo desde una posición específica
-func readInodeAt(file *os.File, inodeNum, inodeStart int32) (*structs.Inode, error) {
+func ReadInodeAt(file *os.File, inodeNum, inodeStart int32) (*structs.Inode, error) {
 	inodeBytes := make([]byte, structs.INODE_SIZE)
 	position := int64(inodeStart + (inodeNum * structs.INODE_SIZE))
 
@@ -659,7 +659,7 @@ func readInodeAt(file *os.File, inodeNum, inodeStart int32) (*structs.Inode, err
 }
 
 // getDirectoryEntries obtiene todas las entradas de un directorio
-func getDirectoryEntries(file *os.File, dirInode *structs.Inode, superblock *structs.Superblock) ([]DirectoryEntry, error) {
+func GetDirectoryEntries(file *os.File, dirInode *structs.Inode, superblock *structs.Superblock) ([]DirectoryEntry, error) {
 	var entries []DirectoryEntry
 
 	// Leer bloques directos del directorio
@@ -719,7 +719,7 @@ type UserInfo struct {
 // findFileRecursively busca un archivo de manera recursiva en el sistema de archivos
 func findFileRecursively(file *os.File, filename string, currentInodeNum int32, superblock *structs.Superblock) (int32, error) {
 	// Leer el inodo actual
-	currentInode, err := readInodeAt(file, currentInodeNum, superblock.S_inode_start)
+	currentInode, err := ReadInodeAt(file, currentInodeNum, superblock.S_inode_start)
 	if err != nil {
 		return -1, fmt.Errorf("error leyendo inodo %d: %v", currentInodeNum, err)
 	}
@@ -774,7 +774,7 @@ func findFileRecursively(file *os.File, filename string, currentInodeNum int32, 
 
 					// Si es un directorio, buscar recursivamente (evitar recursión infinita)
 					if content.B_inodo != currentInodeNum && content.B_inodo > 0 {
-						entryInode, err := readInodeAt(file, content.B_inodo, superblock.S_inode_start)
+						entryInode, err := ReadInodeAt(file, content.B_inodo, superblock.S_inode_start)
 						if err == nil && entryInode.I_type == 1 {
 							// Es un directorio, buscar recursivamente
 							result, err := findFileRecursively(file, filename, content.B_inodo, superblock)

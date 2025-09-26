@@ -17,7 +17,7 @@ func generateInodeReport(partitionID string) (string, error) {
 	}
 
 	// Leer el superbloque para obtener información del sistema de archivos
-	superblock, err := readSuperblock(mountedPartition.Path, partitionID)
+	superblock, err := ReadSuperblock(mountedPartition.Path, partitionID)
 	if err != nil {
 		return "", fmt.Errorf("error leyendo superbloque: %v", err)
 	}

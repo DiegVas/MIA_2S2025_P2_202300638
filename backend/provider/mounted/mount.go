@@ -97,6 +97,19 @@ func (mm *MountManager) IsMounted(path, name string) bool {
 	return false
 }
 
+func (mm *MountManager) GetIDMountedPartition(path, name string) (string, bool) {
+	mm.Mutex.Lock()
+	defer mm.Mutex.Unlock()
+
+	for _, partition := range mm.MountedPartitions {
+		if partition.Path == path && partition.Name == name {
+			return partition.ID, true
+		}
+	}
+
+	return "", false
+}
+
 func (mm *MountManager) GetMountedPartition(id string) (MountedPartition, bool) {
 	mm.Mutex.Lock()
 	defer mm.Mutex.Unlock()
