@@ -11,6 +11,7 @@ import (
 func ParseMkfs(command string) (*structs.MkfsParams, error) {
 	params := &structs.MkfsParams{
 		Type: "full",
+		FS:   "2fs", // Por defecto EXT2
 	}
 
 	originalCommand := command
@@ -67,6 +68,13 @@ func ParseMkfs(command string) (*structs.MkfsParams, error) {
 				return nil, fmt.Errorf("tipo de formateo inválido: '%s'. Solo se admite 'full'", paramValue)
 			}
 			params.Type = typeValue
+
+		case "fs":
+			fsValue := strings.ToLower(paramValue)
+			if fsValue != "2fs" && fsValue != "3fs" {
+				return nil, fmt.Errorf("sistema de archivos inválido: '%s'. Solo se admite '2fs' (EXT2) o '3fs' (EXT3)", paramValue)
+			}
+			params.FS = fsValue
 
 		default:
 			return nil, fmt.Errorf("parámetro desconocido: '%s'", paramName)

@@ -37,9 +37,15 @@ func handleMkfs(w http.ResponseWriter, command string) {
 		return
 	}
 
+	// Determinar el mensaje del sistema de archivos
+	fsMessage := "ext2"
+	if params.FS == "3fs" {
+		fsMessage = "ext3"
+	}
+
 	response := structs.Response{
-		Message: fmt.Sprintf("Partición formateada exitosamente en sistema de archivos ext2 - ID: %s, Type: %s",
-			params.ID, params.Type),
+		Message: fmt.Sprintf("Partición formateada exitosamente en sistema de archivos %s - ID: %s, Type: %s",
+			fsMessage, params.ID, params.Type),
 		Data: params,
 		Type: "system",
 	}

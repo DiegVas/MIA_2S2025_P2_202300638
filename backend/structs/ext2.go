@@ -62,11 +62,13 @@ const (
 	FILE_CONTENT_SIZE = 64   // Tamaño del contenido útil para archivos
 	FOLDER_SIZE       = 64   // Tamaño de una carpeta
 	POINTER_SIZE      = 64   // Tamaño de un bloque de punteros
+	JOURNALING_SIZE   = 120  // Tamaño del journaling para EXT3 (Jornal struct)
 )
 
 // Constantes para el sistema de archivos
 const (
 	EXT2_MAGIC  = 0xEF53      // Número mágico para ext2
+	EXT3_MAGIC  = 0xEF53      // Número mágico para ext3 (mismo que ext2)
 	ROOT_INODE  = 0           // Número de inodo raíz
 	ROOT_FOLDER = "/"         // Nombre de la carpeta raíz
 	USERS_FILE  = "users.txt" // Nombre del archivo de usuarios
