@@ -26,12 +26,14 @@ func (p *MkdiskParams) String() string {
 }
 
 type FdiskParams struct {
-	Size int
-	Unit byte
-	Path string
-	Type byte
-	Fit  string
-	Name string
+	Size   int
+	Unit   byte
+	Path   string
+	Type   byte
+	Fit    string
+	Name   string
+	Delete string // "fast" o "full" para eliminar partición
+	Add    int    // Cantidad a agregar/quitar (puede ser negativo)
 }
 
 func (p *FdiskParams) GetSizeInBytes() int32 {
@@ -44,6 +46,19 @@ func (p *FdiskParams) GetSizeInBytes() int32 {
 		return int32(p.Size) * 1024 * 1024
 	default:
 		return int32(p.Size) * 1024 // Por defecto Kilobytes
+	}
+}
+
+func (p *FdiskParams) GetAddSizeInBytes() int32 {
+	switch p.Unit {
+	case 'B':
+		return int32(p.Add)
+	case 'K':
+		return int32(p.Add) * 1024
+	case 'M':
+		return int32(p.Add) * 1024 * 1024
+	default:
+		return int32(p.Add) * 1024 // Por defecto Kilobytes
 	}
 }
 
@@ -60,8 +75,8 @@ func (p *RepParams) String() string {
 }
 
 func (p *FdiskParams) String() string {
-	return fmt.Sprintf("Size: %d, Unit: %c, Path: %s, Type: %c, Fit: %s, Name: %s",
-		p.Size, p.Unit, p.Path, p.Type, p.Fit, p.Name)
+	return fmt.Sprintf("Size: %d, Unit: %c, Path: %s, Type: %c, Fit: %s, Name: %s, Delete: %s, Add: %d",
+		p.Size, p.Unit, p.Path, p.Type, p.Fit, p.Name, p.Delete, p.Add)
 }
 
 type MountParams struct {
@@ -109,4 +124,12 @@ type LSParams struct {
 
 func (p *LSParams) String() string {
 	return fmt.Sprintf("Path: %s, Name: %s, Of: %s", p.Path, p.Name, p.Of)
+}
+
+type UnmountParams struct {
+	ID string // ID de la partición montada
+}
+
+func (p *UnmountParams) String() string {
+	return fmt.Sprintf("ID: %s", p.ID)
 }

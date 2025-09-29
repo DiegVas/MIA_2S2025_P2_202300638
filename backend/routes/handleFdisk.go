@@ -20,13 +20,29 @@ func handleFdisk(w http.ResponseWriter, command string) {
 		}
 
 		utils.SendJSONResponse(w, response, http.StatusBadRequest)
-
 		return
 	}
 
-	err = utils.CreatePartition(params)
-	if err != nil {
+	// Determinar el tipo de operación
+	if params.Delete != "" {
+		// Operación de eliminación
+		handleDeletePartition(w, params)
+		return
+	}
 
+	if params.Add != 0 {
+		// Operación de agregar/quitar espacio
+		handleAddPartitionSpace(w, params)
+		return
+	}
+
+	// Operación de creación de partición (comportamiento original)
+	handleCreatePartition(w, params)
+}
+
+func handleCreatePartition(w http.ResponseWriter, params *structs.FdiskParams) {
+	err := utils.CreatePartition(params)
+	if err != nil {
 		response := structs.Response{
 			Message: fmt.Sprintf("Error al crear partición: %s", err.Error()),
 			Data:    nil,
@@ -37,7 +53,7 @@ func handleFdisk(w http.ResponseWriter, command string) {
 		return
 	}
 
-	// ? Registrar partición en el disco correspondiente
+	// Registrar partición en el disco correspondiente
 	err = utils.RegisterPartition(params.Path, params.Name)
 	if err != nil {
 		// Log el error pero no fallar la operación completa
@@ -54,4 +70,63 @@ func handleFdisk(w http.ResponseWriter, command string) {
 	}
 
 	utils.SendJSONResponse(w, response, http.StatusCreated)
+}
+
+func handleDeletePartition(w http.ResponseWriter, params *structs.FdiskParams) {
+	// Implementar la lógica de eliminación
+	err := utils.DeletePartition(params)
+
+	if err != nil {
+		response := structs.Response{
+			Message: fmt.Sprintf("Error al eliminar partición: %s", err.Error()),
+			Data:    nil,
+			Type:    "system-error",
+		}
+
+		utils.SendJSONResponse(w, response, http.StatusInternalServerError)
+		return
+	}
+
+	confirmationMessage := fmt.Sprintf("Partición '%s' eliminada exitosamente (%s)",
+		params.Name, params.Delete)
+
+	response := structs.Response{
+		Message: confirmationMessage,
+		Data:    params,
+		Type:    "system",
+	}
+
+	utils.SendJSONResponse(w, response, http.StatusOK)
+}
+
+func handleAddPartitionSpace(w http.ResponseWriter, params *structs.FdiskParams) {
+	// Implementar la lógica de agregar/quitar espacio
+	err := utils.ModifyPartitionSize(params)
+
+	if err != nil {
+		response := structs.Response{
+			Message: fmt.Sprintf("Error al modificar el tamaño de la partición: %s", err.Error()),
+			Data:    nil,
+			Type:    "system-error",
+		}
+
+		utils.SendJSONResponse(w, response, http.StatusInternalServerError)
+		return
+	}
+
+	operation := "agregado"
+	if params.Add < 0 {
+		operation = "quitado"
+	}
+
+	confirmationMessage := fmt.Sprintf("Espacio %s exitosamente a la partición '%s' - Cantidad: %d %c",
+		operation, params.Name, params.Add, params.Unit)
+
+	response := structs.Response{
+		Message: confirmationMessage,
+		Data:    params,
+		Type:    "system",
+	}
+
+	utils.SendJSONResponse(w, response, http.StatusOK)
 }

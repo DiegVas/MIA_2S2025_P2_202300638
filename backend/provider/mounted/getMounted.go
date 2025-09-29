@@ -13,6 +13,7 @@ func GetMountManager() *MountManager {
 			MountedPartitions: make([]MountedPartition, 0),
 			DiskLetters:       make(map[string]byte),
 			DiskCounters:      make(map[string]int),
+			UsedCorrelatives:  make(map[string]map[int]bool),
 		}
 	})
 	return mountManager

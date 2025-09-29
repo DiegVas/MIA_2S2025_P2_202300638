@@ -15,12 +15,14 @@ type FdiskParams = structs.FdiskParams
 func ParseFdisk(command string) (*FdiskParams, error) {
 
 	params := &FdiskParams{
-		Size: 0,
-		Unit: 'K',
-		Path: "",
-		Type: 'P',
-		Fit:  "WF",
-		Name: "",
+		Size:   0,
+		Unit:   'K',
+		Path:   "",
+		Type:   'P',
+		Fit:    "WF",
+		Name:   "",
+		Delete: "",
+		Add:    0,
 	}
 
 	command = strings.TrimSpace(command)
@@ -40,6 +42,8 @@ func ParseFdisk(command string) (*FdiskParams, error) {
 	sizeFound := false
 	pathFound := false
 	nameFound := false
+	hasDeleteOperation := false
+	hasAddOperation := false
 
 	for _, match := range matches {
 		if len(match) < 3 {
@@ -109,6 +113,22 @@ func ParseFdisk(command string) (*FdiskParams, error) {
 			params.Name = paramValue
 			nameFound = true
 
+		case "delete":
+			deleteValue := strings.ToLower(paramValue)
+			if deleteValue != "fast" && deleteValue != "full" {
+				return nil, errors.New("el parámetro delete debe ser 'fast' o 'full'")
+			}
+			params.Delete = deleteValue
+			hasDeleteOperation = true
+
+		case "add":
+			add, err := strconv.Atoi(paramValue)
+			if err != nil {
+				return nil, fmt.Errorf("error al convertir add: %v", err)
+			}
+			params.Add = add
+			hasAddOperation = true
+
 		default:
 			return nil, fmt.Errorf("parámetro desconocido: %s", paramName)
 		}
@@ -120,6 +140,21 @@ func ParseFdisk(command string) (*FdiskParams, error) {
 	if !nameFound {
 		return nil, errors.New("el parámetro -name es obligatorio")
 	}
+
+	// Validaciones según el tipo de operación
+	if hasDeleteOperation {
+		// Para eliminar solo se requiere path, name y delete
+		// Los demás parámetros son ignorados
+		return params, nil
+	}
+
+	if hasAddOperation {
+		// Para agregar/quitar espacio no se requiere size
+		// Se usa el valor de add con las unidades especificadas
+		return params, nil
+	}
+
+	// Para crear una partición nueva se requiere size
 	if !sizeFound {
 		return nil, errors.New("el parámetro -size es obligatorio para crear una partición")
 	}

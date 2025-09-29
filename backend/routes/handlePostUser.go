@@ -67,6 +67,8 @@ func HandlePostUser(w http.ResponseWriter, r *http.Request) {
 		handleFdisk(w, command.Command)
 	case "mount":
 		handleMount(w, command.Command)
+	case "unmount":
+		handleUnmount(w, command.Command)
 	case "mkfs":
 		handleMkfs(w, command.Command)
 	case "login":
@@ -96,7 +98,7 @@ func HandlePostUser(w http.ResponseWriter, r *http.Request) {
 	default:
 
 		response := structs.Response{
-			Message: "Comando no reconocido. Comandos soportados: LS, PARTDISK, MKDISK, RMDISK, FDISK, MOUNT, MOUNTED, MKFS, LOGIN, LOGOUT, MKGRP, RMGRP, MKUSR, RMUSR, CHGRP, CAT, MKFILE, MKDIR, PDISK, REP",
+			Message: "Comando no reconocido. Comandos soportados: LS, PARTDISK, MKDISK, RMDISK, FDISK, MOUNT, UNMOUNT, MOUNTED, MKFS, LOGIN, LOGOUT, MKGRP, RMGRP, MKUSR, RMUSR, CHGRP, CAT, MKFILE, MKDIR, PDISK, REP",
 			Data:    nil,
 			Type:    "system-error",
 		}
