@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"main/provider/common"
 	"main/provider/mounted"
 	"main/structs"
 	"os"
@@ -20,7 +21,7 @@ func generateBMInodeTextReport(params *structs.RepParams) (string, error) {
 	}
 
 	// Leer el superbloque
-	superblock, err := ReadSuperblock(mountedPartition.Path, params.ID)
+	superblock, err := common.ReadSuperblock(mountedPartition.Path, params.ID)
 	if err != nil {
 		return "", fmt.Errorf("error leyendo superbloque: %v", err)
 	}

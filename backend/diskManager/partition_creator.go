@@ -1,4 +1,4 @@
-package utils
+package diskmanager
 
 import (
 	"bytes"
@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"main/structs"
+	"main/utils"
 	"os"
 	"strings"
 )
@@ -229,7 +230,7 @@ func CreatePartition(params *structs.FdiskParams) error {
 
 		copy(mbr.Partitions[newPartIndex].Part_name[:], params.Name)
 
-		uuidBytes := GenerateUUID()
+		uuidBytes := utils.GenerateUUID()
 		copy(mbr.Partitions[newPartIndex].Part_uuid[:], uuidBytes[:16])
 
 		mbr.Partitions[newPartIndex].Part_correlative = mbr.Mbr_partitions + 1
@@ -558,6 +559,33 @@ func ModifyPartitionSize(params *structs.FdiskParams) error {
 		return fmt.Errorf("error al leer MBR: %v", err)
 	}
 
+	// Debug: mostrar estado actual de las particiones
+	fmt.Printf("DEBUG - Estado actual del disco %s:\n", params.Path)
+	fmt.Printf("  Tamaño total del disco: %d bytes (%.2f MB)\n", mbr.Mbr_size, float64(mbr.Mbr_size)/(1024*1024))
+	fmt.Printf("  Particiones existentes:\n")
+	usedSpace := int32(0)
+	for i := 0; i < 4; i++ {
+		if mbr.Partitions[i].Part_status[0] == 1 {
+			partName := strings.TrimRight(string(mbr.Partitions[i].Part_name[:]), "\x00")
+			partSizeMB := float64(mbr.Partitions[i].Part_size) / (1024 * 1024)
+			fmt.Printf("    %d: %s - start: %d, size: %d bytes (%.2f MB)\n",
+				i, partName, mbr.Partitions[i].Part_start, mbr.Partitions[i].Part_size, partSizeMB)
+			usedSpace += mbr.Partitions[i].Part_size
+		}
+	}
+	freeSpace := mbr.Mbr_size - usedSpace - 47 // 47 bytes del MBR
+	fmt.Printf("  Espacio usado: %d bytes (%.2f MB)\n", usedSpace, float64(usedSpace)/(1024*1024))
+	fmt.Printf("  Espacio libre: %d bytes (%.2f MB)\n", freeSpace, float64(freeSpace)/(1024*1024))
+
+	addSizeBytes := params.GetAddSizeInBytes()
+	absAddSize := addSizeBytes
+	if addSizeBytes < 0 {
+		absAddSize = -addSizeBytes
+	}
+	fmt.Printf("  Operación solicitada: %s %d bytes (%.2f MB) a partición '%s'\n",
+		map[bool]string{true: "agregar", false: "quitar"}[addSizeBytes > 0],
+		absAddSize, float64(absAddSize)/(1024*1024), params.Name)
+
 	// Buscar la partición en particiones primarias y extendidas
 	partitionIndex := -1
 	var targetPartition *structs.PARTITION
@@ -585,7 +613,7 @@ func ModifyPartitionSize(params *structs.FdiskParams) error {
 
 			// Verificar si es una partición extendida
 			if partition.Part_status[0] != 0 && partition.Part_type[0] == 'E' {
-				found, err := modifyLogicalPartitionSize(params.Path, partition.Part_start, params.Name, params.GetAddSizeInBytes())
+				found, err := modifyLogicalPartitionSizeWithSpace(params.Path, partition.Part_start, params.Name, params.GetAddSizeInBytes())
 				if err != nil {
 					return fmt.Errorf("error al modificar partición lógica: %v", err)
 				}
@@ -616,15 +644,64 @@ func ModifyPartitionSize(params *structs.FdiskParams) error {
 		return fmt.Errorf("no se puede reducir la partición: el tamaño resultante sería negativo o cero")
 	}
 
-	// Si se está agregando espacio, verificar que hay espacio disponible después de la partición
+	// Validación adicional: verificar que la operación no exceda el tamaño total del disco
 	if addSizeInBytes > 0 {
-		err = validateSpaceAfterPartition(mbr, targetPartition, addSizeInBytes)
+		totalUsedSpace := int32(47) // MBR
+		for i := 0; i < 4; i++ {
+			if mbr.Partitions[i].Part_status[0] == 1 {
+				if i == partitionIndex {
+					// Para la partición que estamos modificando, usar el nuevo tamaño
+					totalUsedSpace += targetPartition.Part_size + addSizeInBytes
+				} else {
+					totalUsedSpace += mbr.Partitions[i].Part_size
+				}
+			}
+		}
+
+		fmt.Printf("🔍 VALIDACIÓN DE ESPACIO TOTAL:\n")
+		fmt.Printf("  Espacio total que se usaría: %d bytes (%.2f MB)\n", totalUsedSpace, float64(totalUsedSpace)/(1024*1024))
+		fmt.Printf("  Tamaño del disco: %d bytes (%.2f MB)\n", mbr.Mbr_size, float64(mbr.Mbr_size)/(1024*1024))
+
+		if totalUsedSpace > mbr.Mbr_size {
+			excesoBytes := totalUsedSpace - mbr.Mbr_size
+			return fmt.Errorf("❌ OPERACIÓN RECHAZADA: No hay espacio suficiente en el disco.\n"+
+				"  Espacio total requerido: %d bytes (%.2f MB)\n"+
+				"  Tamaño del disco: %d bytes (%.2f MB)\n"+
+				"  Exceso: %d bytes (%.2f MB)",
+				totalUsedSpace, float64(totalUsedSpace)/(1024*1024),
+				mbr.Mbr_size, float64(mbr.Mbr_size)/(1024*1024),
+				excesoBytes, float64(excesoBytes)/(1024*1024))
+		}
+		fmt.Printf("  ✅ Validación de espacio total: EXITOSA\n")
+	}
+
+	// Verificar espacio contiguo disponible
+	if addSizeInBytes > 0 {
+		fmt.Printf("🔍 VALIDACIÓN DE ESPACIO CONTIGUO:\n")
+		err = validateContiguousSpaceAfterPartition(mbr, targetPartition, addSizeInBytes)
 		if err != nil {
-			return fmt.Errorf("no hay espacio suficiente: %v", err)
+			return fmt.Errorf("❌ ESPACIO CONTIGUO INSUFICIENTE: %v", err)
+		}
+		fmt.Printf("  ✅ Validación de espacio contiguo: EXITOSA\n")
+	}
+
+	// Manejar el cambio físico en el disco
+	if addSizeInBytes > 0 {
+		// Expandir la partición: inicializar nuevo espacio con ceros
+		err = initializePartitionSpace(diskFile, targetPartition.Part_start+targetPartition.Part_size, addSizeInBytes)
+		if err != nil {
+			return fmt.Errorf("error al inicializar nuevo espacio de partición: %v", err)
+		}
+	} else if addSizeInBytes < 0 {
+		// Reducir la partición: limpiar el espacio liberado
+		spaceToFree := -addSizeInBytes
+		err = clearPartitionSpace(diskFile, targetPartition.Part_start+targetPartition.Part_size+addSizeInBytes, spaceToFree)
+		if err != nil {
+			return fmt.Errorf("error al limpiar espacio liberado: %v", err)
 		}
 	}
 
-	// Modificar el tamaño
+	// Modificar el tamaño en el MBR
 	newSize := targetPartition.Part_size + addSizeInBytes
 	mbr.Partitions[partitionIndex].Part_size = newSize
 
@@ -634,59 +711,68 @@ func ModifyPartitionSize(params *structs.FdiskParams) error {
 		return fmt.Errorf("error al escribir el MBR: %v", err)
 	}
 
-	operation := "agregado"
-	if addSizeInBytes < 0 {
-		operation = "quitado"
-		addSizeInBytes = -addSizeInBytes
+	// VERIFICACIÓN CRÍTICA: Volver a leer el MBR para confirmar que se escribió correctamente
+	fmt.Printf("DEBUG - Verificando integridad después de escribir...\n")
+	mbrVerify, err := ReadMBR(params.Path)
+	if err != nil {
+		return fmt.Errorf("error crítico: no se pudo leer el MBR después de escribirlo: %v", err)
 	}
 
-	fmt.Printf("Espacio %s exitosamente a la partición '%s': %d bytes\n", operation, params.Name, addSizeInBytes)
+	// Verificar que la partición modificada mantiene sus datos
+	verifyPartition := &mbrVerify.Partitions[partitionIndex]
+	if verifyPartition.Part_status[0] == 0 {
+		return fmt.Errorf("error crítico: la partición se perdió después de escribir el MBR")
+	}
+
+	verifyPartName := strings.TrimRight(string(verifyPartition.Part_name[:]), "\x00")
+	if !strings.EqualFold(verifyPartName, params.Name) {
+		return fmt.Errorf("error crítico: el nombre de la partición cambió después de escribir el MBR. Esperado: %s, Encontrado: %s",
+			params.Name, verifyPartName)
+	}
+
+	if verifyPartition.Part_size != newSize {
+		return fmt.Errorf("error crítico: el tamaño de la partición no se actualizó correctamente. Esperado: %d, Encontrado: %d",
+			newSize, verifyPartition.Part_size)
+	}
+
+	fmt.Printf("DEBUG - ✅ Verificación de integridad: EXITOSA\n")
+
+	// Mostrar resumen final de la operación
+	operation := "agregado"
+	absSize := addSizeInBytes
+	if addSizeInBytes < 0 {
+		operation = "quitado"
+		absSize = -addSizeInBytes
+	}
+
+	fmt.Printf("✓ Espacio %s exitosamente a la partición '%s': %d bytes (%.2f MB)\n",
+		operation, params.Name, absSize, float64(absSize)/(1024*1024))
+
+	// Mostrar nuevo tamaño de la partición
+	fmt.Printf("  Nuevo tamaño de la partición: %d bytes (%.2f MB)\n",
+		newSize, float64(newSize)/(1024*1024))
+
+	// Validación final: verificar que no se haya excedido el tamaño del disco
+	totalUsedSpace := int32(47) // MBR
+	for i := 0; i < 4; i++ {
+		if mbr.Partitions[i].Part_status[0] == 1 {
+			totalUsedSpace += mbr.Partitions[i].Part_size
+		}
+	}
+
+	if totalUsedSpace > mbr.Mbr_size {
+		fmt.Printf("⚠️  ADVERTENCIA: El espacio total usado (%d bytes) excede el tamaño del disco (%d bytes)\n",
+			totalUsedSpace, mbr.Mbr_size)
+	} else {
+		remainingSpace := mbr.Mbr_size - totalUsedSpace
+		fmt.Printf("  Espacio restante en el disco: %d bytes (%.2f MB)\n",
+			remainingSpace, float64(remainingSpace)/(1024*1024))
+	}
+
 	return nil
 }
 
 // Funciones auxiliares
-
-// readMBR lee el MBR completo del disco
-func readMBR(diskFile *os.File) (structs.MBR, error) {
-	var mbr structs.MBR
-	const MBR_SIZE = 47
-
-	mbrBytes := make([]byte, MBR_SIZE)
-	_, err := diskFile.ReadAt(mbrBytes, 0)
-	if err != nil {
-		return mbr, err
-	}
-
-	buffer := bytes.NewReader(mbrBytes)
-	binary.Read(buffer, binary.LittleEndian, &mbr.Mbr_size)
-	buffer.Read(mbr.Mbr_timestamp[:])
-	buffer.Read(mbr.Mbr_uuid[:])
-	binary.Read(buffer, binary.LittleEndian, &mbr.Mbr_partitions)
-	buffer.Read(mbr.Dsk_fit[:])
-
-	// Leer las particiones
-	partitionDataOffset := int64(MBR_SIZE)
-	partitionSize := int64(59)
-
-	for i := 0; i < 4; i++ {
-		partPos := partitionDataOffset + int64(i)*partitionSize
-		partData := make([]byte, partitionSize)
-		_, err = diskFile.ReadAt(partData, partPos)
-		if err != nil {
-			return mbr, err
-		}
-
-		partBuffer := bytes.NewReader(partData)
-		partBuffer.Read(mbr.Partitions[i].Part_status[:])
-		partBuffer.Read(mbr.Partitions[i].Part_type[:])
-		partBuffer.Read(mbr.Partitions[i].Part_fit[:])
-		binary.Read(partBuffer, binary.LittleEndian, &mbr.Partitions[i].Part_start)
-		binary.Read(partBuffer, binary.LittleEndian, &mbr.Partitions[i].Part_size)
-		partBuffer.Read(mbr.Partitions[i].Part_name[:])
-	}
-
-	return mbr, nil
-}
 
 // writeMBR escribe el MBR completo al disco
 func writeMBR(diskFile *os.File, mbr *structs.MBR) error {
@@ -703,27 +789,43 @@ func writeMBR(diskFile *os.File, mbr *structs.MBR) error {
 		return err
 	}
 
-	// Escribir las particiones
+	// Escribir las particiones completas
 	const MBR_SIZE = 47
 	partitionDataOffset := int64(MBR_SIZE)
-	partitionSize := int64(59)
+	partitionSize := int64(59) // Tamaño completo de la estructura PARTITION
 
 	for i := 0; i < 4; i++ {
 		var partBuffer bytes.Buffer
-		partBuffer.Write(mbr.Partitions[i].Part_status[:])
-		partBuffer.Write(mbr.Partitions[i].Part_type[:])
-		partBuffer.Write(mbr.Partitions[i].Part_fit[:])
-		binary.Write(&partBuffer, binary.LittleEndian, mbr.Partitions[i].Part_start)
-		binary.Write(&partBuffer, binary.LittleEndian, mbr.Partitions[i].Part_size)
-		partBuffer.Write(mbr.Partitions[i].Part_name[:])
+		partBuffer.Write(mbr.Partitions[i].Part_status[:])                                 // 1 byte
+		partBuffer.Write(mbr.Partitions[i].Part_type[:])                                   // 1 byte
+		partBuffer.Write(mbr.Partitions[i].Part_fit[:])                                    // 1 byte
+		binary.Write(&partBuffer, binary.LittleEndian, mbr.Partitions[i].Part_start)       // 4 bytes
+		binary.Write(&partBuffer, binary.LittleEndian, mbr.Partitions[i].Part_size)        // 4 bytes
+		partBuffer.Write(mbr.Partitions[i].Part_name[:])                                   // 16 bytes
+		partBuffer.Write(mbr.Partitions[i].Part_uuid[:])                                   // 16 bytes
+		binary.Write(&partBuffer, binary.LittleEndian, mbr.Partitions[i].Part_correlative) // 16 bytes
 
 		partPos := partitionDataOffset + int64(i)*partitionSize
+
+		// Debug: verificar que se está escribiendo toda la información
+		fmt.Printf("DEBUG - Escribiendo partición %d en posición %d:\n", i, partPos)
+		fmt.Printf("  Status: %d, Type: %c, Fit: %c\n",
+			mbr.Partitions[i].Part_status[0],
+			mbr.Partitions[i].Part_type[0],
+			mbr.Partitions[i].Part_fit[0])
+		fmt.Printf("  Start: %d, Size: %d\n",
+			mbr.Partitions[i].Part_start,
+			mbr.Partitions[i].Part_size)
+		fmt.Printf("  Name: %s\n",
+			strings.TrimRight(string(mbr.Partitions[i].Part_name[:]), "\x00"))
+
 		_, err = diskFile.WriteAt(partBuffer.Bytes(), partPos)
 		if err != nil {
-			return err
+			return fmt.Errorf("error al escribir partición %d: %v", i, err)
 		}
 	}
 
+	fmt.Printf("DEBUG - MBR escrito exitosamente\n")
 	return nil
 }
 
@@ -798,10 +900,16 @@ func fillAreaWithZeros(diskFile *os.File, start int32, size int32) error {
 	return nil
 }
 
-// validateSpaceAfterPartition valida que hay espacio disponible después de una partición
-func validateSpaceAfterPartition(mbr *structs.MBR, partition *structs.PARTITION, requiredSpace int32) error {
+// validateContiguousSpaceAfterPartition valida que hay espacio libre contiguo disponible después de una partición
+func validateContiguousSpaceAfterPartition(mbr *structs.MBR, partition *structs.PARTITION, requiredSpace int32) error {
 	partitionEnd := partition.Part_start + partition.Part_size
 	diskEnd := mbr.Mbr_size
+
+	// Debug: imprimir información actual
+	fmt.Printf("DEBUG - Validando espacio contiguo:\n")
+	fmt.Printf("  Partición actual: start=%d, size=%d, end=%d\n", partition.Part_start, partition.Part_size, partitionEnd)
+	fmt.Printf("  Tamaño total del disco: %d bytes\n", diskEnd)
+	fmt.Printf("  Espacio requerido: %d bytes\n", requiredSpace)
 
 	// Buscar la siguiente partición más cercana
 	nextPartitionStart := diskEnd
@@ -809,15 +917,72 @@ func validateSpaceAfterPartition(mbr *structs.MBR, partition *structs.PARTITION,
 		if mbr.Partitions[i].Part_status[0] == 1 &&
 			mbr.Partitions[i].Part_start > partitionEnd &&
 			mbr.Partitions[i].Part_start < nextPartitionStart {
+
+			partName := strings.TrimRight(string(mbr.Partitions[i].Part_name[:]), "\x00")
+			fmt.Printf("  Siguiente partición encontrada: '%s', start=%d\n", partName, mbr.Partitions[i].Part_start)
 			nextPartitionStart = mbr.Partitions[i].Part_start
 		}
 	}
 
-	availableSpace := nextPartitionStart - partitionEnd
+	availableContiguousSpace := nextPartitionStart - partitionEnd
+	fmt.Printf("  Espacio contiguo disponible: %d bytes\n", availableContiguousSpace)
 
-	if availableSpace < requiredSpace {
-		return fmt.Errorf("espacio insuficiente después de la partición. Disponible: %d bytes, Requerido: %d bytes",
-			availableSpace, requiredSpace)
+	if availableContiguousSpace < requiredSpace {
+		return fmt.Errorf("espacio contiguo insuficiente después de la partición. Disponible: %d bytes, Requerido: %d bytes",
+			availableContiguousSpace, requiredSpace)
+	}
+
+	fmt.Printf("  ✓ Validación exitosa: hay suficiente espacio contiguo\n")
+	return nil
+}
+
+// initializePartitionSpace inicializa un área del disco con ceros para expansión de partición
+func initializePartitionSpace(diskFile *os.File, start int32, size int32) error {
+	const bufferSize = 1024 * 1024 // 1MB buffer para eficiencia
+	zeros := make([]byte, bufferSize)
+
+	remaining := size
+	currentPos := start
+
+	for remaining > 0 {
+		writeSize := bufferSize
+		if remaining < int32(bufferSize) {
+			writeSize = int(remaining)
+		}
+
+		_, err := diskFile.WriteAt(zeros[:writeSize], int64(currentPos))
+		if err != nil {
+			return fmt.Errorf("error al inicializar espacio de partición: %v", err)
+		}
+
+		currentPos += int32(writeSize)
+		remaining -= int32(writeSize)
+	}
+
+	return nil
+}
+
+// clearPartitionSpace limpia un área del disco cuando se reduce una partición
+func clearPartitionSpace(diskFile *os.File, start int32, size int32) error {
+	const bufferSize = 1024 * 1024 // 1MB buffer
+	zeros := make([]byte, bufferSize)
+
+	remaining := size
+	currentPos := start
+
+	for remaining > 0 {
+		writeSize := bufferSize
+		if remaining < int32(bufferSize) {
+			writeSize = int(remaining)
+		}
+
+		_, err := diskFile.WriteAt(zeros[:writeSize], int64(currentPos))
+		if err != nil {
+			return fmt.Errorf("error al limpiar espacio liberado: %v", err)
+		}
+
+		currentPos += int32(writeSize)
+		remaining -= int32(writeSize)
 	}
 
 	return nil
@@ -963,6 +1128,130 @@ func modifyLogicalPartitionSize(diskPath string, extendedStart int32, partitionN
 	}
 
 	return false, nil // No se encontró la partición
+}
+
+// modifyLogicalPartitionSizeWithSpace busca y modifica el tamaño de una partición lógica por nombre con manejo físico del espacio
+func modifyLogicalPartitionSizeWithSpace(diskPath string, extendedStart int32, partitionName string, addSizeInBytes int32) (bool, error) {
+	diskFile, err := os.OpenFile(diskPath, os.O_RDWR, 0666)
+	if err != nil {
+		return false, fmt.Errorf("error al abrir disco: %v", err)
+	}
+	defer diskFile.Close()
+
+	currentEBRPos := extendedStart
+
+	for currentEBRPos != 0 {
+		var ebr structs.EBR
+		err := ReadEBR(diskFile, &ebr, int64(currentEBRPos))
+		if err != nil {
+			break
+		}
+
+		// Verificar si el EBR contiene una partición válida
+		if ebr.Part_mount[0] != 0 {
+			// Limpiar el nombre de la partición
+			currentPartName := strings.TrimRight(string(ebr.Part_name[:]), "\x00")
+
+			if strings.EqualFold(currentPartName, partitionName) {
+				// Encontramos la partición a modificar
+				newSize := ebr.Part_size + addSizeInBytes
+
+				// Validar que el nuevo tamaño no sea negativo
+				if newSize <= 0 {
+					return false, fmt.Errorf("el nuevo tamaño de la partición sería negativo o cero")
+				}
+
+				// Verificar espacio contiguo si se está agregando espacio
+				if addSizeInBytes > 0 {
+					err = validateLogicalPartitionSpace(diskFile, &ebr, addSizeInBytes)
+					if err != nil {
+						return false, fmt.Errorf("espacio contiguo insuficiente para partición lógica: %v", err)
+					}
+				}
+
+				// Manejar el cambio físico en el disco
+				if addSizeInBytes > 0 {
+					// Expandir: inicializar nuevo espacio con ceros
+					err = initializePartitionSpace(diskFile, ebr.Part_start+ebr.Part_size, addSizeInBytes)
+					if err != nil {
+						return false, fmt.Errorf("error al inicializar nuevo espacio de partición lógica: %v", err)
+					}
+				} else if addSizeInBytes < 0 {
+					// Reducir: limpiar el espacio liberado
+					spaceToFree := -addSizeInBytes
+					err = clearPartitionSpace(diskFile, ebr.Part_start+ebr.Part_size+addSizeInBytes, spaceToFree)
+					if err != nil {
+						return false, fmt.Errorf("error al limpiar espacio liberado de partición lógica: %v", err)
+					}
+				}
+
+				// Actualizar el tamaño en el EBR
+				ebr.Part_size = newSize
+
+				// Escribir el EBR actualizado
+				ebrData := make([]byte, 30) // Tamaño del EBR
+				ebrData[0] = ebr.Part_mount[0]
+				ebrData[1] = ebr.Part_fit[0]
+
+				// Part_start (4 bytes, little endian)
+				ebrData[2] = byte(ebr.Part_start)
+				ebrData[3] = byte(ebr.Part_start >> 8)
+				ebrData[4] = byte(ebr.Part_start >> 16)
+				ebrData[5] = byte(ebr.Part_start >> 24)
+
+				// Part_size (4 bytes, little endian)
+				ebrData[6] = byte(ebr.Part_size)
+				ebrData[7] = byte(ebr.Part_size >> 8)
+				ebrData[8] = byte(ebr.Part_size >> 16)
+				ebrData[9] = byte(ebr.Part_size >> 24)
+
+				// Part_next (4 bytes, little endian)
+				ebrData[10] = byte(ebr.Part_next)
+				ebrData[11] = byte(ebr.Part_next >> 8)
+				ebrData[12] = byte(ebr.Part_next >> 16)
+				ebrData[13] = byte(ebr.Part_next >> 24)
+
+				// Part_name (16 bytes)
+				copy(ebrData[14:30], ebr.Part_name[:])
+
+				_, err = diskFile.WriteAt(ebrData, int64(currentEBRPos))
+				if err != nil {
+					return false, fmt.Errorf("error al escribir EBR actualizado: %v", err)
+				}
+
+				return true, nil
+			}
+		}
+
+		// Ir al siguiente EBR
+		currentEBRPos = ebr.Part_next
+	}
+
+	return false, nil // No se encontró la partición
+}
+
+// validateLogicalPartitionSpace valida que hay espacio contiguo disponible para una partición lógica
+func validateLogicalPartitionSpace(diskFile *os.File, ebr *structs.EBR, requiredSpace int32) error {
+	currentPartitionEnd := ebr.Part_start + ebr.Part_size
+
+	// Si hay una siguiente partición lógica, verificar que no haya solapamiento
+	if ebr.Part_next != 0 {
+		var nextEBR structs.EBR
+		err := ReadEBR(diskFile, &nextEBR, int64(ebr.Part_next))
+		if err != nil {
+			return fmt.Errorf("error al leer siguiente EBR: %v", err)
+		}
+
+		availableSpace := nextEBR.Part_start - currentPartitionEnd
+		if availableSpace < requiredSpace {
+			return fmt.Errorf("espacio contiguo insuficiente entre particiones lógicas. Disponible: %d bytes, Requerido: %d bytes",
+				availableSpace, requiredSpace)
+		}
+	}
+	// Si no hay siguiente partición, el espacio está limitado por el final de la partición extendida
+	// Esta validación se debe hacer desde el nivel superior (partición extendida)
+
+	return nil
 }
 
 // Funciones auxiliares

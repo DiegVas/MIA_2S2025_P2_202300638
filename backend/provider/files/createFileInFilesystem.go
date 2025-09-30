@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"main/provider/mounted"
+	"main/provider/users"
 	"main/structs"
 	"os"
 	"strings"
@@ -49,7 +50,7 @@ func createFileInFilesystem(file *os.File, path, content string, size int32, ses
 	}
 
 	// ! Obtener información del usuario actual para el archivo
-	currentUser, err := GetCurrentUserInfo(session, partition)
+	currentUser, err := users.GetCurrentUserInfo(session, partition)
 	if err != nil {
 		return fmt.Errorf("error al obtener información del usuario: %v", err)
 	}

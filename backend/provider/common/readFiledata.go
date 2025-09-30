@@ -1,4 +1,4 @@
-package files
+package common
 
 import (
 	"bytes"
@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-func readFileData(file *os.File, inode structs.Inode, blockPos int32) (string, error) {
+func ReadFileData(file *os.File, inode structs.Inode, blockPos int32) (string, error) {
 	var content strings.Builder
 	totalBytesRead := 0
 

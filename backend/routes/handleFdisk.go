@@ -3,6 +3,7 @@ package routes
 import (
 	"fmt"
 	"main/Analyzer"
+	diskmanager "main/diskManager"
 	"main/structs"
 	"main/utils"
 	"net/http"
@@ -41,7 +42,7 @@ func handleFdisk(w http.ResponseWriter, command string) {
 }
 
 func handleCreatePartition(w http.ResponseWriter, params *structs.FdiskParams) {
-	err := utils.CreatePartition(params)
+	err := diskmanager.CreatePartition(params)
 	if err != nil {
 		response := structs.Response{
 			Message: fmt.Sprintf("Error al crear partición: %s", err.Error()),
@@ -54,7 +55,7 @@ func handleCreatePartition(w http.ResponseWriter, params *structs.FdiskParams) {
 	}
 
 	// Registrar partición en el disco correspondiente
-	err = utils.RegisterPartition(params.Path, params.Name)
+	err = diskmanager.RegisterPartition(params.Path, params.Name)
 	if err != nil {
 		// Log el error pero no fallar la operación completa
 		fmt.Printf("Advertencia: No se pudo registrar la partición en ~/disks: %s\n", err.Error())
@@ -74,7 +75,7 @@ func handleCreatePartition(w http.ResponseWriter, params *structs.FdiskParams) {
 
 func handleDeletePartition(w http.ResponseWriter, params *structs.FdiskParams) {
 	// Implementar la lógica de eliminación
-	err := utils.DeletePartition(params)
+	err := diskmanager.DeletePartition(params)
 
 	if err != nil {
 		response := structs.Response{
@@ -101,7 +102,7 @@ func handleDeletePartition(w http.ResponseWriter, params *structs.FdiskParams) {
 
 func handleAddPartitionSpace(w http.ResponseWriter, params *structs.FdiskParams) {
 	// Implementar la lógica de agregar/quitar espacio
-	err := utils.ModifyPartitionSize(params)
+	err := diskmanager.ModifyPartitionSize(params)
 
 	if err != nil {
 		response := structs.Response{

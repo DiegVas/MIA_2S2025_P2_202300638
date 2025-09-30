@@ -3,6 +3,7 @@ package routes
 import (
 	"fmt"
 	"main/Analyzer"
+	diskmanager "main/diskManager"
 	"main/structs"
 	"main/utils"
 	"net/http"
@@ -25,7 +26,7 @@ func handlePartdisk(w http.ResponseWriter, command string) {
 	}
 
 	// Obtener información de las particiones del disco
-	partitions, err := utils.GetDiskPartitions(params.Path)
+	partitions, err := diskmanager.GetDiskPartitions(params.Path)
 
 	if err != nil {
 		response := structs.Response{

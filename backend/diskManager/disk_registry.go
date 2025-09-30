@@ -1,4 +1,4 @@
-package utils
+package diskmanager
 
 import (
 	"bufio"

@@ -6,9 +6,9 @@ import (
 	"os"
 	"strings"
 
+	diskmanager "main/diskManager"
 	"main/provider/mounted"
 	"main/structs"
-	"main/utils"
 )
 
 func CreateFile(params *structs.MkfileParams) error {
@@ -24,7 +24,7 @@ func CreateFile(params *structs.MkfileParams) error {
 		return errors.New("no hay ninguna partición montada para esta sesión")
 	}
 
-	mbr, err := utils.ReadMBR(partition.Path)
+	mbr, err := diskmanager.ReadMBR(partition.Path)
 	if err != nil {
 		return fmt.Errorf("error al leer el MBR del disco: %v", err)
 	}

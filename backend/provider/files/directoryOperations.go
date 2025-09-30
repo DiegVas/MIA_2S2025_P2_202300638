@@ -5,9 +5,11 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	diskmanager "main/diskManager"
+	"main/provider/common"
 	"main/provider/mounted"
+	"main/provider/users"
 	"main/structs"
-	"main/utils"
 	"os"
 	"strings"
 	"time"
@@ -51,7 +53,7 @@ func FindOrCreateParentDirectory(file *os.File, dirPath string, session *structs
 			}
 
 			//  ? Crear el directorio
-			currentUser, err := GetCurrentUserInfo(session, partition)
+			currentUser, err := users.GetCurrentUserInfo(session, partition)
 			if err != nil {
 				fmt.Printf("DEBUG FIND_OR_CREATE: Error obteniendo usuario: %v\n", err)
 				return -1, fmt.Errorf("error al obtener información del usuario: %v", err)
@@ -298,7 +300,7 @@ func CreateDirectory(params *structs.MkdirParams) error {
 		return errors.New("no hay ninguna partición montada para esta sesión")
 	}
 
-	mbr, err := utils.ReadMBR(partition.Path)
+	mbr, err := diskmanager.ReadMBR(partition.Path)
 	if err != nil {
 		return fmt.Errorf("error al leer el MBR del disco: %v", err)
 	}
@@ -351,7 +353,7 @@ func CreateDirectory(params *structs.MkdirParams) error {
 	dirName := getLastComponent(params.Path)
 
 	// Buscar el inodo del directorio padre
-	parentInodeNum, err := findFileInodeByPath(diskFile, parentPath, inodePos, blockPos)
+	parentInodeNum, err := common.FindFileInodeByPath(diskFile, parentPath, inodePos, blockPos)
 	if err != nil {
 		fmt.Printf("DEBUG MKDIR: Error buscando directorio padre: %v\n", err)
 		return fmt.Errorf("el directorio padre no existe: %v", err)
@@ -360,7 +362,7 @@ func CreateDirectory(params *structs.MkdirParams) error {
 	fmt.Printf("DEBUG MKDIR: Directorio padre encontrado, inodo: %d\n", parentInodeNum)
 
 	// Crear solo el directorio especificado
-	currentUser, err := GetCurrentUserInfo(session, partition)
+	currentUser, err := users.GetCurrentUserInfo(session, partition)
 	if err != nil {
 		return fmt.Errorf("error al obtener información del usuario: %v", err)
 	}

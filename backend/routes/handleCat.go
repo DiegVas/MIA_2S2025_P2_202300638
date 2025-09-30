@@ -3,7 +3,7 @@ package routes
 import (
 	"fmt"
 	"main/Analyzer"
-	"main/provider/files"
+	"main/provider/common"
 	"main/provider/mounted"
 	"main/structs"
 	"main/utils"
@@ -54,7 +54,7 @@ func handleCatFile(w http.ResponseWriter, command string) {
 
 	}
 
-	content, err := files.ReadFileContent(params.Files, id)
+	content, err := common.ReadFileContent(params.Files, id)
 
 	if err != nil {
 		response := utils.CreateResponse(
@@ -94,7 +94,7 @@ func handleCat(w http.ResponseWriter, command string) {
 	var hasErrors bool
 
 	for _, filePath := range params.Files {
-		content, err := files.ReadFileContent(filePath, "")
+		content, err := common.ReadFileContent(filePath, "")
 		if err != nil {
 			results = append(results, fmt.Sprintf("Error al leer '%s': %s", filePath, err.Error()))
 			hasErrors = true

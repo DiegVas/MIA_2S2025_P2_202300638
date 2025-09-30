@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"main/provider/mounted"
+	"main/provider/users"
 	"main/structs"
 	"os"
 )
@@ -26,7 +27,7 @@ func HasWritePermissionOnDirectory(file *os.File, dirInodeNum int32, session *st
 	}
 
 	// ? Obtener información del usuario actual
-	currentUser, err := GetCurrentUserInfo(session, mounted.MountedPartition{})
+	currentUser, err := users.GetCurrentUserInfo(session, mounted.MountedPartition{})
 	if err != nil {
 		return false
 	}

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"main/Analyzer"
 	"main/structs"
-	"main/utils"
+
 	"os"
 	"strings"
 )
@@ -14,7 +14,7 @@ func ShowDiskPartitions(params *Analyzer.PdiskParams) (*structs.DiskPartitionsIn
 		return nil, fmt.Errorf("el archivo del disco '%s' no existe", params.Path)
 	}
 
-	mbr, err := utils.ReadMBR(params.Path)
+	mbr, err := ReadMBR(params.Path)
 	if err != nil {
 		return nil, fmt.Errorf("error al leer el MBR del disco: %v", err)
 	}

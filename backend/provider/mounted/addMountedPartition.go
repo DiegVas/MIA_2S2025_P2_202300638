@@ -1,11 +1,10 @@
-package mountpartition
+package mounted
 
 import (
 	"fmt"
-	"main/provider/mounted"
 )
 
-func AddMountedPartition(mm *mounted.MountManager, path, name string, carnet string) (string, int, error) {
+func AddMountedPartition(mm *MountManager, path, name string, carnet string) (string, int, error) {
 	mm.Mutex.Lock()
 	defer mm.Mutex.Unlock()
 
@@ -44,7 +43,7 @@ func AddMountedPartition(mm *mounted.MountManager, path, name string, carnet str
 
 	id := suffix + fmt.Sprintf("%d", counter) + string(letter)
 
-	mountedPartition := mounted.MountedPartition{
+	mountedPartition := MountedPartition{
 		Path:        path,
 		Name:        name,
 		ID:          id,

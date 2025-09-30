@@ -1,10 +1,11 @@
-package utils
+package diskmanager
 
 import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
 	"main/structs"
+	"main/utils"
 	"os"
 	"path/filepath"
 	"strings"
@@ -40,7 +41,7 @@ func CreateDisk(params *structs.MkdiskParams) error {
 	timestampStr := time.Now().Format("2006-01-02")[:10]
 	copy(mbr.Mbr_timestamp[:], timestampStr)
 
-	uuidBytes := GenerateUUID()
+	uuidBytes := utils.GenerateUUID()
 	copy(mbr.Mbr_uuid[:], uuidBytes)
 
 	if len(params.Fit) > 0 {

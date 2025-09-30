@@ -692,9 +692,8 @@ func GetDirectoryEntries(file *os.File, dirInode *structs.Inode, superblock *str
 			}
 
 			// Procesar cada entrada en el bloque
-			for j, content := range folderBlock.B_content {
+			for _, content := range folderBlock.B_content {
 				entryName := strings.TrimRight(string(content.B_name[:]), "\x00")
-				fmt.Printf("DEBUG LS BLOCK %d ENTRY %d: Name='%s', Inode=%d\n", dirInode.I_block[i], j, entryName, content.B_inodo)
 				if entryName != "" && content.B_inodo >= 0 {
 					entries = append(entries, DirectoryEntry{
 						Name:     entryName,

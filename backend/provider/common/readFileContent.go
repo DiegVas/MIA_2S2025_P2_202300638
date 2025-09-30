@@ -1,13 +1,15 @@
-package files
+package common
 
 import (
 	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
+
+	diskmanager "main/diskManager"
 	"main/provider/mounted"
+	"main/provider/users"
 	"main/structs"
-	"main/utils"
 	"os"
 	"strings"
 )
@@ -34,7 +36,7 @@ func ReadFileContent(filePath string, idPartition string) (string, error) {
 	}
 
 	// Leer el MBR del disco
-	mbr, err := utils.ReadMBR(partition.Path)
+	mbr, err := diskmanager.ReadMBR(partition.Path)
 	if err != nil {
 		return "", fmt.Errorf("error al leer el MBR del disco: %v", err)
 	}
@@ -72,7 +74,7 @@ func ReadFileContent(filePath string, idPartition string) (string, error) {
 	defer file.Close()
 
 	// Navegar por el path y encontrar el archivo
-	inodeNum, err := findFileInodeByPath(file, filePath, inodePos, blockPos)
+	inodeNum, err := FindFileInodeByPath(file, filePath, inodePos, blockPos)
 	if err != nil {
 		return "", err
 	}
@@ -95,17 +97,17 @@ func ReadFileContent(filePath string, idPartition string) (string, error) {
 	}
 
 	// Verificar permisos de lectura
-	currentUser, err := GetCurrentUserInfo(session, partition)
+	currentUser, err := users.GetCurrentUserInfo(session, partition)
 	if err != nil && idPartition == "" {
 		return "", fmt.Errorf("error al obtener información del usuario: %v", err)
 	}
 
-	if !hasReadPermission(inode, currentUser) && idPartition == "" {
+	if !HasReadPermission(inode, currentUser) && idPartition == "" {
 		return "", errors.New("no tiene permisos de lectura para este archivo")
 	}
 
 	// Leer el contenido del archivo
-	content, err := readFileData(file, inode, blockPos)
+	content, err := ReadFileData(file, inode, blockPos)
 	if err != nil {
 		return "", fmt.Errorf("error al leer el contenido del archivo: %v", err)
 	}

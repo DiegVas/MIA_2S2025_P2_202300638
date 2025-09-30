@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"main/Analyzer"
+	diskmanager "main/diskManager"
 	"main/structs"
 	"main/utils"
 	"net/http"
@@ -40,7 +41,7 @@ func handleRmdisk(w http.ResponseWriter, command string) {
 	}
 
 	// ? Eliminar disco del registro ~/disks
-	err = utils.UnregisterDisk(params.Path)
+	err = diskmanager.UnregisterDisk(params.Path)
 	if err != nil {
 		// Log el error pero no fallar la operación completa
 		fmt.Printf("Advertencia: No se pudo eliminar el disco del registro ~/disks: %s\n", err.Error())

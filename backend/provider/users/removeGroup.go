@@ -1,10 +1,10 @@
-package groups
+package users
 
 import (
 	"errors"
 	"fmt"
 	"main/provider/mounted"
-	"main/provider/users"
+
 	"main/structs"
 	"strconv"
 	"strings"
@@ -29,7 +29,7 @@ func RemoveGroup(params *structs.GroupParams) error {
 	}
 
 	// Leer el contenido actual de users.txt
-	usersFile, err := users.ReadUsersFile(partition.Path, partition.Name)
+	usersFile, err := ReadUsersFile(partition.Path, partition.Name)
 	if err != nil {
 		return fmt.Errorf("error al leer el archivo de usuarios: %v", err)
 	}
@@ -77,7 +77,7 @@ func RemoveGroup(params *structs.GroupParams) error {
 	}
 
 	// Escribir el archivo actualizado
-	err = users.WriteUsersFile(partition.Path, partition.Name, newContent)
+	err = WriteUsersFile(partition.Path, partition.Name, newContent)
 	if err != nil {
 		return fmt.Errorf("error al escribir el archivo de usuarios: %v", err)
 	}

@@ -2,6 +2,7 @@ package reports
 
 import (
 	"fmt"
+	"main/provider/common"
 	"main/provider/mounted"
 	"strings"
 )
@@ -16,7 +17,7 @@ func generateDiskReport(partitionID string) (string, error) {
 	}
 
 	// Leer el MBR del disco
-	mbr, err := readMBRFromDisk(mountedPartition.Path)
+	mbr, err := common.ReadMBRFromDisk(mountedPartition.Path)
 	if err != nil {
 		return "", fmt.Errorf("error leyendo MBR: %v", err)
 	}

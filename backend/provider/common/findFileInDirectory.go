@@ -1,4 +1,4 @@
-package files
+package common
 
 import (
 	"bytes"
@@ -12,7 +12,7 @@ import (
 func findFileInDirectory(file *os.File, name string, dirInode structs.Inode, blockPos int32) (int32, error) {
 	// Calcular cuántos bloques necesita este directorio basándose en su tamaño
 	if dirInode.I_size <= 0 {
-		fmt.Printf("DEBUG FIND_DIR: Directorio vacío (tamaño <= 0)\n")
+
 		return -1, fmt.Errorf("directorio vacío")
 	}
 
@@ -25,7 +25,7 @@ func findFileInDirectory(file *os.File, name string, dirInode structs.Inode, blo
 			blockBytes := make([]byte, structs.BLOCK_SIZE)
 			_, err := file.ReadAt(blockBytes, int64(blockPos+(blockNum*structs.BLOCK_SIZE)))
 			if err != nil {
-				fmt.Printf("DEBUG FIND_DIR: Error al leer bloque %d: %v\n", blockNum, err)
+
 				continue
 			}
 

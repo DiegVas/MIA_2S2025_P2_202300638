@@ -133,3 +133,11 @@ type UnmountParams struct {
 func (p *UnmountParams) String() string {
 	return fmt.Sprintf("ID: %s", p.ID)
 }
+
+type RemoveParams struct {
+	Path string // Ruta del archivo o carpeta a eliminar
+}
+
+func (p *RemoveParams) String() string {
+	return fmt.Sprintf("Path: %s", p.Path)
+}

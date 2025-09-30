@@ -1,4 +1,4 @@
-package files
+package common
 
 import (
 	"bytes"
@@ -9,22 +9,16 @@ import (
 	"strings"
 )
 
-func findFileInodeByPath(file *os.File, path string, inodePos, blockPos int32) (int32, error) {
-	fmt.Printf("DEBUG FIND_PATH: Iniciando búsqueda para path: '%s'\n", path)
+func FindFileInodeByPath(file *os.File, path string, inodePos, blockPos int32) (int32, error) {
 
 	// Si el path es la raíz, retornar el inodo 0 directamente
 	if path == "/" {
-		fmt.Printf("DEBUG FIND_PATH: Path es raíz, retornando inodo 0\n")
+
 		return 0, nil
 	}
 
-	// Normalizar el path
-	originalPath := path
-	path = strings.TrimPrefix(path, "/")
-	fmt.Printf("DEBUG FIND_PATH: Path original: '%s', normalizado: '%s'\n", originalPath, path)
-
 	if path == "" {
-		fmt.Printf("DEBUG FIND_PATH: Path normalizado vacío, retornando inodo 0 (raíz)\n")
+
 		return 0, nil // Después de normalizar, si queda vacío, es la raíz
 	}
 
@@ -32,7 +26,6 @@ func findFileInodeByPath(file *os.File, path string, inodePos, blockPos int32) (
 	components := strings.Split(path, "/")
 	currentInodeNum := int32(0) // Comenzar desde el directorio raíz	// Para cada componente del path, navegar por el sistema de archivos
 	for i, component := range components {
-		fmt.Printf("DEBUG FIND: Procesando componente %d: '%s'\n", i, component)
 
 		// Leer el inodo actual
 		inodeBytes := make([]byte, structs.INODE_SIZE)

@@ -4,15 +4,15 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	diskmanager "main/diskManager"
 	"main/structs"
-	"main/utils"
 	"os"
 	"strings"
 )
 
 func ReadUsersFile(diskPath, partitionName string) (string, error) {
 	// ? Leer el MBR del disco
-	mbr, err := utils.ReadMBR(diskPath)
+	mbr, err := diskmanager.ReadMBR(diskPath)
 	if err != nil {
 		return "", fmt.Errorf("error al leer el MBR del disco: %v", err)
 	}

@@ -2,6 +2,7 @@ package reports
 
 import (
 	"fmt"
+	"main/provider/common"
 	"main/provider/mounted"
 	"main/structs"
 	"os"
@@ -18,7 +19,7 @@ func generateBlockReport(partitionID string) (string, error) {
 	}
 
 	// Leer el superbloque para obtener información del sistema de archivos
-	superblock, err := ReadSuperblock(mountedPartition.Path, partitionID)
+	superblock, err := common.ReadSuperblock(mountedPartition.Path, partitionID)
 	if err != nil {
 		return "", fmt.Errorf("error leyendo superbloque: %v", err)
 	}

@@ -4,11 +4,11 @@ digraph DISK_Report {
     graph [fontname="Arial", fontsize=12];
     node [fontname="Arial", fontsize=10];
 
-    title [label="DISK Report\nDisco1.mia", fillcolor=lightblue, fontsize=14];
+    title [label="DISK Report\nDisco9.mia", fillcolor=lightblue, fontsize=14];
 
-    disk_info [label="Tamaño Total: 50.00 MB|Espacio Libre: 20.00%", fillcolor=lightgray];
+    disk_info [label="Tamaño Total: 10.00 MB|Espacio Libre: -10.00%", fillcolor=lightgray];
 
-    disk_structure [label="Estructura del Disco|{Componente|Tamaño|Porcentaje|Detalles}|{MBR|47 bytes|N/A|Master Boot Record}|{Part11|10.00 MB|20.00%|Partición Primaria}|{Part12|10.00 MB|20.00%|Partición Primaria}|{Part13|10.00 MB|20.00%|Partición Primaria}|{Part14|10.00 MB|20.00%|Partición Primaria}|{Espacio Libre|10.00 MB|20.00%|Espacio no particionado}", fillcolor=lightyellow];
+    disk_structure [label="Estructura del Disco|{Componente|Tamaño|Porcentaje|Detalles}|{MBR|47 bytes|N/A|Master Boot Record}|{Part13|5.00 MB|50.00%|Partición Primaria}|{Part12|4.00 MB|40.00%|Partición Primaria}|{Part11|1.00 MB|10.00%|Partición Primaria}|{Part14|1.00 MB|10.00%|Partición Primaria}|", fillcolor=lightyellow];
 
     title -> disk_info;
     disk_info -> disk_structure;

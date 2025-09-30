@@ -1,17 +1,15 @@
-package files
+package users
 
 import (
 	"fmt"
-	"main/provider/groups"
 	"main/provider/mounted"
-	"main/provider/users"
 	"main/structs"
 	"strconv"
 	"strings"
 )
 
 func GetCurrentUserInfo(session *structs.Session, partition mounted.MountedPartition) (*structs.User, error) {
-	usersContent, err := users.ReadUsersFile(partition.Path, partition.Name)
+	usersContent, err := ReadUsersFile(partition.Path, partition.Name)
 	if err != nil {
 		return nil, fmt.Errorf("error al leer el archivo de usuarios: %v", err)
 	}
@@ -35,7 +33,7 @@ func GetCurrentUserInfo(session *structs.Session, partition mounted.MountedParti
 				uid, _ := strconv.Atoi(strings.TrimSpace(parts[0]))
 				groupName := strings.TrimSpace(parts[2])
 
-				gid := groups.FindGroupGID(usersContent, groupName)
+				gid := FindGroupGID(usersContent, groupName)
 
 				return &structs.User{
 					Username: username,

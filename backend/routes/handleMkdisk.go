@@ -3,6 +3,7 @@ package routes
 import (
 	"fmt"
 	"main/Analyzer"
+	diskmanager "main/diskManager"
 	"main/structs"
 	"main/utils"
 	"net/http"
@@ -25,7 +26,7 @@ func handleMkdisk(w http.ResponseWriter, command string) {
 	}
 
 	// ? Crear disco
-	err = utils.CreateDisk(params)
+	err = diskmanager.CreateDisk(params)
 
 	if err != nil {
 		response := structs.Response{
@@ -39,7 +40,7 @@ func handleMkdisk(w http.ResponseWriter, command string) {
 	}
 
 	// ? Registrar disco en archivo ~/disks
-	err = utils.RegisterDisk(params)
+	err = diskmanager.RegisterDisk(params)
 	if err != nil {
 		// Log el error pero no fallar la operación completa
 		fmt.Printf("Advertencia: No se pudo registrar el disco en ~/disks: %s\n", err.Error())
@@ -58,7 +59,7 @@ func handleMkdisk(w http.ResponseWriter, command string) {
 }
 
 func handleDisks(w http.ResponseWriter) {
-	disks, err := utils.GetRegisteredDisks()
+	disks, err := diskmanager.GetRegisteredDisks()
 	if err != nil {
 		response := structs.Response{
 			Message: fmt.Sprintf("Error al leer discos registrados: %s", err.Error()),

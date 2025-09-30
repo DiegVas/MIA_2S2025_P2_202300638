@@ -3,7 +3,8 @@ package routes
 import (
 	"fmt"
 	"main/Analyzer"
-	"main/provider/groups"
+	"main/provider/users"
+
 	"main/structs"
 	"main/utils"
 	"net/http"
@@ -25,7 +26,7 @@ func handleMkgrp(w http.ResponseWriter, command string) {
 	}
 
 	// ! Crear el grupo
-	err = groups.CreateGroup(params)
+	err = users.CreateGroup(params)
 	if err != nil {
 		fmt.Printf("handleMkgrp - error: %s\n", err.Error())
 
@@ -62,7 +63,7 @@ func handleRmgrp(w http.ResponseWriter, command string) {
 		return
 	}
 
-	err = groups.RemoveGroup(params)
+	err = users.RemoveGroup(params)
 	if err != nil {
 		fmt.Printf("handleRmgrp - error: %s\n", err.Error())
 

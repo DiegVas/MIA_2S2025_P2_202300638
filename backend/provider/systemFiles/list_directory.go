@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"main/provider/common"
 	"main/provider/mounted"
 	"main/provider/reports"
 
@@ -47,7 +48,6 @@ func ListDirectory(params *structs.LSParams) (*DirectoryListing, error) {
 	if mountManager.IsMounted(params.Path, params.Name) {
 		id, _ = mountManager.GetIDMountedPartition(params.Path, params.Name)
 
-		fmt.Printf("DEBUG - Partición ya montada con ID: '%s'\n", id)
 	} else {
 		id_el, err := mounted.MountPartition(paramsMount)
 		id = id_el
@@ -67,7 +67,7 @@ func ListDirectory(params *structs.LSParams) (*DirectoryListing, error) {
 	fmt.Printf("DEBUG - Partición encontrada: Path='%s', Name='%s'\n", mountedPartition.Path, mountedPartition.Name)
 
 	// Leer el superbloque
-	superblock, err := reports.ReadSuperblock(mountedPartition.Path, id)
+	superblock, err := common.ReadSuperblock(mountedPartition.Path, id)
 	if err != nil {
 		return nil, fmt.Errorf("error leyendo superbloque: %v", err)
 	}

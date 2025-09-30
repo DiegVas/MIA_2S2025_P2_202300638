@@ -1,10 +1,10 @@
-package files
+package common
 
 import (
 	"main/structs"
 )
 
-func hasReadPermission(inode structs.Inode, user *structs.User) bool {
+func HasReadPermission(inode structs.Inode, user *structs.User) bool {
 	if user == nil {
 		return false
 	}

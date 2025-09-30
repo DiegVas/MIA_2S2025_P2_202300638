@@ -1,10 +1,10 @@
-package groups
+package users
 
 import (
 	"errors"
 	"fmt"
 	"main/provider/mounted"
-	"main/provider/users"
+
 	"main/structs"
 	"strconv"
 	"strings"
@@ -27,7 +27,7 @@ func CreateGroup(params *structs.GroupParams) error {
 		return fmt.Errorf("no se encontró la partición con ID '%s'", session.ID)
 	}
 
-	usersFile, err := users.ReadUsersFile(partition.Path, partition.Name)
+	usersFile, err := ReadUsersFile(partition.Path, partition.Name)
 	if err != nil {
 		return fmt.Errorf("error al leer el archivo de usuarios: %v", err)
 	}
@@ -72,7 +72,7 @@ func CreateGroup(params *structs.GroupParams) error {
 	usersFile += newGroupLine + "\n"
 
 	// Escribir el archivo actualizado
-	err = users.WriteUsersFile(partition.Path, partition.Name, usersFile)
+	err = WriteUsersFile(partition.Path, partition.Name, usersFile)
 	if err != nil {
 		return fmt.Errorf("error al escribir el archivo de usuarios: %v", err)
 	}
