@@ -26,13 +26,11 @@ func FindOrCreateParentDirectory(file *os.File, dirPath string, session *structs
 	components := strings.Split(dirPath, "/")
 	currentInodeNum := int32(0)
 
-	for i, component := range components {
+	for _, component := range components {
 		if component == "" {
 
 			continue
 		}
-
-		fmt.Printf("DEBUG FIND_OR_CREATE: Procesando componente %d: '%s', inodo actual: %d\n", i, component, currentInodeNum)
 
 		// ? Buscar el directorio en el inodo actual
 		nextInodeNum, exists := FindFileInDirectoryByInode(file, component, currentInodeNum, inodePos, blockPos)
@@ -66,8 +64,6 @@ func FindOrCreateParentDirectory(file *os.File, dirPath string, session *structs
 				return -1, fmt.Errorf("error al crear directorio '%s': %v", component, err)
 			}
 
-		} else {
-			fmt.Printf("DEBUG FIND_OR_CREATE: Componente '%s' ya existe con inodo: %d\n", component, nextInodeNum)
 		}
 
 		currentInodeNum = nextInodeNum
@@ -358,8 +354,6 @@ func CreateDirectory(params *structs.MkdirParams) error {
 		fmt.Printf("DEBUG MKDIR: Error buscando directorio padre: %v\n", err)
 		return fmt.Errorf("el directorio padre no existe: %v", err)
 	}
-
-	fmt.Printf("DEBUG MKDIR: Directorio padre encontrado, inodo: %d\n", parentInodeNum)
 
 	// Crear solo el directorio especificado
 	currentUser, err := users.GetCurrentUserInfo(session, partition)

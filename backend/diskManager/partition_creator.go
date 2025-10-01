@@ -559,10 +559,6 @@ func ModifyPartitionSize(params *structs.FdiskParams) error {
 		return fmt.Errorf("error al leer MBR: %v", err)
 	}
 
-	// Debug: mostrar estado actual de las particiones
-	fmt.Printf("DEBUG - Estado actual del disco %s:\n", params.Path)
-	fmt.Printf("  Tamaño total del disco: %d bytes (%.2f MB)\n", mbr.Mbr_size, float64(mbr.Mbr_size)/(1024*1024))
-	fmt.Printf("  Particiones existentes:\n")
 	usedSpace := int32(0)
 	for i := 0; i < 4; i++ {
 		if mbr.Partitions[i].Part_status[0] == 1 {
@@ -712,7 +708,7 @@ func ModifyPartitionSize(params *structs.FdiskParams) error {
 	}
 
 	// VERIFICACIÓN CRÍTICA: Volver a leer el MBR para confirmar que se escribió correctamente
-	fmt.Printf("DEBUG - Verificando integridad después de escribir...\n")
+
 	mbrVerify, err := ReadMBR(params.Path)
 	if err != nil {
 		return fmt.Errorf("error crítico: no se pudo leer el MBR después de escribirlo: %v", err)
@@ -734,8 +730,6 @@ func ModifyPartitionSize(params *structs.FdiskParams) error {
 		return fmt.Errorf("error crítico: el tamaño de la partición no se actualizó correctamente. Esperado: %d, Encontrado: %d",
 			newSize, verifyPartition.Part_size)
 	}
-
-	fmt.Printf("DEBUG - ✅ Verificación de integridad: EXITOSA\n")
 
 	// Mostrar resumen final de la operación
 	operation := "agregado"
@@ -807,25 +801,12 @@ func writeMBR(diskFile *os.File, mbr *structs.MBR) error {
 
 		partPos := partitionDataOffset + int64(i)*partitionSize
 
-		// Debug: verificar que se está escribiendo toda la información
-		fmt.Printf("DEBUG - Escribiendo partición %d en posición %d:\n", i, partPos)
-		fmt.Printf("  Status: %d, Type: %c, Fit: %c\n",
-			mbr.Partitions[i].Part_status[0],
-			mbr.Partitions[i].Part_type[0],
-			mbr.Partitions[i].Part_fit[0])
-		fmt.Printf("  Start: %d, Size: %d\n",
-			mbr.Partitions[i].Part_start,
-			mbr.Partitions[i].Part_size)
-		fmt.Printf("  Name: %s\n",
-			strings.TrimRight(string(mbr.Partitions[i].Part_name[:]), "\x00"))
-
 		_, err = diskFile.WriteAt(partBuffer.Bytes(), partPos)
 		if err != nil {
 			return fmt.Errorf("error al escribir partición %d: %v", i, err)
 		}
 	}
 
-	fmt.Printf("DEBUG - MBR escrito exitosamente\n")
 	return nil
 }
 
@@ -904,12 +885,6 @@ func fillAreaWithZeros(diskFile *os.File, start int32, size int32) error {
 func validateContiguousSpaceAfterPartition(mbr *structs.MBR, partition *structs.PARTITION, requiredSpace int32) error {
 	partitionEnd := partition.Part_start + partition.Part_size
 	diskEnd := mbr.Mbr_size
-
-	// Debug: imprimir información actual
-	fmt.Printf("DEBUG - Validando espacio contiguo:\n")
-	fmt.Printf("  Partición actual: start=%d, size=%d, end=%d\n", partition.Part_start, partition.Part_size, partitionEnd)
-	fmt.Printf("  Tamaño total del disco: %d bytes\n", diskEnd)
-	fmt.Printf("  Espacio requerido: %d bytes\n", requiredSpace)
 
 	// Buscar la siguiente partición más cercana
 	nextPartitionStart := diskEnd

@@ -20,7 +20,7 @@ func generateIndirectBlockConnections(file *os.File, superblock *structs.Superbl
 	for i, pointer := range pointerBlock.B_pointers {
 		// Validar que el puntero esté en un rango razonable y esté marcado como usado
 		if pointer != 0 && pointer > 0 && pointer < 10000 && pointer < int32(len(blockBitmap)) && blockBitmap[pointer] == 1 {
-			fmt.Printf("DEBUG TREE: Generando conexion indirecta: block_%d:ptr_%d -> block_%d\n", blockNum, i, pointer)
+
 			dot.WriteString(fmt.Sprintf("    block_%d:ptr_%d -> block_%d;\n", blockNum, i, pointer))
 		} else if pointer != 0 {
 			fmt.Printf("DEBUG TREE: Puntero invalido omitido: %d (rango: 0-%d, bitmap len: %d)\n", pointer, 10000, len(blockBitmap))

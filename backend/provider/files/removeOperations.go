@@ -157,7 +157,6 @@ func canDeleteDirectoryRecursively(file *os.File, dirInodeNum int32, session *st
 
 // removeInodeRecursively elimina un inodo y todo su contenido recursivamente
 func removeInodeRecursively(file *os.File, inodeNum int32, sb *structs.Superblock) error {
-	fmt.Printf("DEBUG REMOVE_INODE: Eliminando inodo %d\n", inodeNum)
 
 	// Leer el inodo
 	inode, err := reports.ReadInodeAt(file, inodeNum, sb.S_inode_start)
@@ -167,7 +166,6 @@ func removeInodeRecursively(file *os.File, inodeNum int32, sb *structs.Superbloc
 
 	// Si es directorio, eliminar contenido recursivamente
 	if inode.I_type == 1 {
-		fmt.Printf("DEBUG REMOVE_INODE: Inodo %d es directorio, eliminando contenido recursivamente\n", inodeNum)
 		entries, err := reports.GetDirectoryEntries(file, inode, sb)
 		if err != nil {
 			return err
@@ -182,7 +180,6 @@ func removeInodeRecursively(file *os.File, inodeNum int32, sb *structs.Superbloc
 				continue
 			}
 
-			fmt.Printf("DEBUG REMOVE_INODE: Eliminando entrada '%s' (inodo %d)\n", entry.Name, entry.InodeNum)
 			err = removeInodeRecursively(file, entry.InodeNum, sb)
 			if err != nil {
 				return err
@@ -191,14 +188,14 @@ func removeInodeRecursively(file *os.File, inodeNum int32, sb *structs.Superbloc
 	}
 
 	// Liberar bloques del inodo
-	fmt.Printf("DEBUG REMOVE_INODE: Liberando bloques del inodo %d\n", inodeNum)
+
 	err = freeInodeBlocks(file, inode, sb)
 	if err != nil {
 		return err
 	}
 
 	// Marcar inodo como libre
-	fmt.Printf("DEBUG REMOVE_INODE: Marcando inodo %d como libre\n", inodeNum)
+
 	err = markInodeAsFree(file, inodeNum, sb)
 	if err != nil {
 		return err
@@ -206,7 +203,6 @@ func removeInodeRecursively(file *os.File, inodeNum int32, sb *structs.Superbloc
 
 	// Incrementar contador de inodos libres
 	sb.S_free_inodes_count++
-	fmt.Printf("DEBUG REMOVE_INODE: Contador de inodos libres incrementado a %d\n", sb.S_free_inodes_count)
 
 	return nil
 }
@@ -353,12 +349,10 @@ func freeTripleIndirectBlock(file *os.File, blockNum int32, sb *structs.Superblo
 func markInodeAsFree(file *os.File, inodeNum int32, sb *structs.Superblock) error {
 	bmInodePos := sb.S_bm_inode_start
 	writePos := bmInodePos + inodeNum
-	fmt.Printf("DEBUG MARK_FREE: Marcando inodo %d como libre en posición %d (bitmap_start=%d)\n",
-		inodeNum, writePos, bmInodePos)
 
 	_, err := file.WriteAt([]byte{0}, int64(writePos))
 	if err != nil {
-		fmt.Printf("DEBUG MARK_FREE: ERROR escribiendo en posición %d: %v\n", writePos, err)
+
 	}
 	return err
 }
@@ -367,8 +361,6 @@ func markInodeAsFree(file *os.File, inodeNum int32, sb *structs.Superblock) erro
 func markBlockAsFree(file *os.File, blockIndex int32, sb *structs.Superblock) error {
 	bmBlockPos := sb.S_bm_block_start
 	writePos := bmBlockPos + blockIndex
-	fmt.Printf("DEBUG MARK_BLOCK_FREE: Marcando bloque %d como libre en posición %d (bitmap_start=%d)\n",
-		blockIndex, writePos, bmBlockPos)
 
 	_, err := file.WriteAt([]byte{0}, int64(writePos))
 	if err != nil {
@@ -384,16 +376,6 @@ func removeFromParentDirectory(file *os.File, parentInodeNum int32, filename str
 	if err != nil {
 		return fmt.Errorf("error leyendo inodo padre: %v", err)
 	}
-
-	// Debug del inodo padre
-	fmt.Printf("DEBUG REMOVE: Buscando entrada '%s' en directorio padre (inodo %d)\n", filename, parentInodeNum)
-	fmt.Printf("DEBUG REMOVE: Bloques del directorio padre: ")
-	for i := 0; i < 15; i++ {
-		if parentInode.I_block[i] != 0 {
-			fmt.Printf("[%d]=%d ", i, parentInode.I_block[i])
-		}
-	}
-	fmt.Println()
 
 	// Buscar en TODOS los bloques del directorio, incluyendo bloques indirectos
 	found := false
@@ -414,7 +396,6 @@ func removeFromParentDirectory(file *os.File, parentInodeNum int32, filename str
 			blockPos = sb.S_block_start + (parentInode.I_block[i] * structs.BLOCK_SIZE)
 		}
 
-		fmt.Printf("DEBUG REMOVE: Buscando en bloque %d, posición %d\n", i, blockPos)
 		if searchAndRemoveInBlock(file, int64(blockPos), filename) {
 			found = true
 			break
@@ -423,23 +404,20 @@ func removeFromParentDirectory(file *os.File, parentInodeNum int32, filename str
 
 	// Si no se encontró en bloques directos, buscar en bloque indirecto
 	if !found && parentInode.I_block[12] != 0 {
-		fmt.Printf("DEBUG REMOVE: Buscando en bloque indirecto %d\n", parentInode.I_block[12])
+
 		found = searchAndRemoveInIndirectBlock(file, parentInode.I_block[12], filename, sb)
 	}
 
 	if !found {
-		fmt.Printf("DEBUG REMOVE: ERROR - entrada '%s' no encontrada en directorio padre\n", filename)
 		return fmt.Errorf("entrada '%s' no encontrada en directorio padre", filename)
 	}
 
-	fmt.Printf("DEBUG REMOVE: Entrada '%s' eliminada exitosamente\n", filename)
 	return nil
 }
 
 // searchAndRemoveInBlock busca y elimina una entrada en un bloque específico
 func searchAndRemoveInBlock(file *os.File, blockPos int64, filename string) bool {
 	fmt.Printf("DEBUG REMOVE: Buscando '%s' en bloque en posición %d\n", filename, blockPos)
-
 	var folderBlock structs.FolderBlock
 	blockBytes := make([]byte, structs.BLOCK_SIZE)
 	_, err := file.ReadAt(blockBytes, blockPos)
@@ -455,11 +433,7 @@ func searchAndRemoveInBlock(file *os.File, blockPos int64, filename string) bool
 	for j := 0; j < 4; j++ {
 		entryName := string(bytes.TrimRight(folderBlock.B_content[j].B_name[:], "\x00"))
 
-		fmt.Printf("DEBUG REMOVE: Comparando '%s' con entrada[%d]='%s' (inodo=%d)\n",
-			filename, j, entryName, folderBlock.B_content[j].B_inodo)
-
 		if entryName == filename && folderBlock.B_content[j].B_inodo != 0 {
-			fmt.Printf("DEBUG REMOVE: Encontrada entrada a eliminar: '%s'\n", filename)
 
 			// Limpiar la entrada
 			folderBlock.B_content[j].B_name = [12]byte{}

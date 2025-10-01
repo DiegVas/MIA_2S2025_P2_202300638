@@ -8,3 +8,8 @@ type MkfileParams struct {
 	SizeSet bool
 	ContSet bool
 }
+
+type EditParams struct {
+	Path      string // Ruta del archivo a editar
+	Contenido string // Ruta del archivo local con el nuevo contenido
+}
