@@ -12,22 +12,8 @@ import (
 	"os"
 )
 
-// DirectoryListing representa el resultado del listado
-type DirectoryListing struct {
-	Path      string          `json:"path"`
-	Entries   []DirectoryData `json:"entries"`
-	IsMounted bool            `json:"is_mounted"`
-}
-
-type DirectoryData struct {
-	Date     string `json:"date"`
-	Size     string `json:"size"`
-	FileType string `json:"file_type"`
-	Name     string `json:"name"`
-}
-
 // ListDirectory lista el contenido de un directorio en una partición montada
-func ListDirectory(params *structs.LSParams) (*DirectoryListing, error) {
+func ListDirectory(params *structs.LSParams) (*structs.DirectoryListing, error) {
 	fmt.Printf("DEBUG - ListDirectory iniciado con ID: '%s', Of: '%s'\n", params.Name, params.Of)
 
 	// Validar parámetros
@@ -104,7 +90,7 @@ func ListDirectory(params *structs.LSParams) (*DirectoryListing, error) {
 
 	fmt.Printf("DEBUG - Entradas encontradas en '%s': %d\n", params.Of, len(entries))
 
-	directoryResult := []DirectoryData{}
+	directoryResult := []structs.DirectoryData{}
 
 	for _, entry := range entries {
 		if entry.Name == "" {
@@ -126,7 +112,7 @@ func ListDirectory(params *structs.LSParams) (*DirectoryListing, error) {
 			fileType = "directory"
 		}
 
-		directoryResult = append(directoryResult, DirectoryData{
+		directoryResult = append(directoryResult, structs.DirectoryData{
 			Date:     date,
 			Size:     size,
 			FileType: fileType,
@@ -141,7 +127,7 @@ func ListDirectory(params *structs.LSParams) (*DirectoryListing, error) {
 
 	fmt.Printf("DEBUG - ListDirectory contenido: %+v\n", directoryResult)
 
-	return &DirectoryListing{
+	return &structs.DirectoryListing{
 		Path:    params.Of,
 		Entries: directoryResult,
 	}, nil

@@ -345,8 +345,8 @@ func CreateDirectory(params *structs.MkdirParams) error {
 	}
 
 	// Sin -p, verificar que el directorio padre existe y crear solo el directorio especificado
-	parentPath := getParentPath(params.Path)
-	dirName := getLastComponent(params.Path)
+	parentPath := GetParentPath(params.Path)
+	dirName := GetLastComponent(params.Path)
 
 	// Buscar el inodo del directorio padre
 	parentInodeNum, err := common.FindFileInodeByPath(diskFile, parentPath, inodePos, blockPos)
@@ -371,7 +371,7 @@ func CreateDirectory(params *structs.MkdirParams) error {
 }
 
 // getParentPath obtiene la ruta del directorio padre
-func getParentPath(path string) string {
+func GetParentPath(path string) string {
 
 	if path == "/" {
 
@@ -397,7 +397,7 @@ func getParentPath(path string) string {
 }
 
 // getLastComponent extrae el último componente de una ruta
-func getLastComponent(path string) string {
+func GetLastComponent(path string) string {
 
 	path = strings.TrimSuffix(path, "/")
 
