@@ -141,3 +141,21 @@ type RemoveParams struct {
 func (p *RemoveParams) String() string {
 	return fmt.Sprintf("Path: %s", p.Path)
 }
+
+type MoveParams struct {
+	Path    string // Ruta del archivo o carpeta a mover
+	Destino string // Ruta de destino donde se moverá el archivo o carpeta
+}
+
+func (p *MoveParams) String() string {
+	return fmt.Sprintf("Path: %s, Destino: %s", p.Path, p.Destino)
+}
+
+type FindParams struct {
+	Path string // Ruta de la carpeta donde iniciar la búsqueda
+	Name string // Nombre del archivo o carpeta a buscar (puede contener * y ?)
+}
+
+func (p *FindParams) String() string {
+	return fmt.Sprintf("Path: %s, Name: %s", p.Path, p.Name)
+}
