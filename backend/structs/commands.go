@@ -159,3 +159,23 @@ type FindParams struct {
 func (p *FindParams) String() string {
 	return fmt.Sprintf("Path: %s, Name: %s", p.Path, p.Name)
 }
+
+type ChownParams struct {
+	Path    string // Ruta del archivo o carpeta al que cambiar el propietario
+	Usuario string // Nombre del nuevo propietario
+	R       bool   // Recursivo para carpetas
+}
+
+func (p *ChownParams) String() string {
+	return fmt.Sprintf("Path: %s, Usuario: %s, R: %t", p.Path, p.Usuario, p.R)
+}
+
+type ChmodParams struct {
+	Path string // Ruta del archivo o carpeta al que cambiar los permisos
+	UGO  string // Permisos en formato UGO (0-7)(0-7)(0-7)
+	R    bool   // Recursivo para carpetas
+}
+
+func (p *ChmodParams) String() string {
+	return fmt.Sprintf("Path: %s, UGO: %s, R: %t", p.Path, p.UGO, p.R)
+}
