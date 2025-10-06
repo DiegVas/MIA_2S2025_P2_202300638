@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	diskmanager "main/diskManager"
+	"main/provider/common"
 	"main/provider/mounted"
 	"main/structs"
 )
@@ -45,22 +46,30 @@ func CreateFile(params *structs.MkfileParams) error {
 		return fmt.Errorf("la partición '%s' no se encontró en el disco", partition.Name)
 	}
 
-	// ? Calcular las posiciones de las estructuras del sistema de archivos
-	startPosition := targetPartition.Part_start
-	inodeCount := int32(float64(targetPartition.Part_size) * 0.05 / float64(structs.INODE_SIZE))
-	blockCount := (targetPartition.Part_size - inodeCount*structs.INODE_SIZE) / structs.BLOCK_SIZE
-
-	bmInodePos := startPosition + structs.SUPERBLOCK_SIZE
-	bmBlockPos := bmInodePos + inodeCount
-	inodePos := bmBlockPos + blockCount
-	blockPos := inodePos + (inodeCount * structs.INODE_SIZE)
-
 	// ? Abrir el archivo del disco para escritura
 	file, err := os.OpenFile(partition.Path, os.O_RDWR, 0666)
 	if err != nil {
 		return fmt.Errorf("error al abrir el disco: %v", err)
 	}
 	defer file.Close()
+
+	// Detectar el tipo de sistema de archivos y obtener posiciones
+	startPosition := targetPartition.Part_start
+	positions, err := common.GetFilesystemPositions(file, startPosition)
+	if err != nil {
+		return fmt.Errorf("error al obtener posiciones del sistema de archivos: %v", err)
+	}
+
+	// Usar las posiciones del superbloque
+	bmInodePos := positions.BmInodePos
+	bmBlockPos := positions.BmBlockPos
+	inodePos := positions.InodePos
+	blockPos := positions.BlockPos
+	inodeCount := positions.InodeCount
+	blockCount := positions.BlockCount
+
+	fmt.Printf("DEBUG CreateFile: filesystem_type=%d, usando posiciones del superbloque\n", positions.FilesystemType)
+	fmt.Printf("DEBUG CreateFile: inodePos=%d, blockPos=%d\n", inodePos, blockPos)
 
 	// ? Preparar el contenido del archivo
 	content, contentSize, err := prepareFileContent(params)

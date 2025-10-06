@@ -12,6 +12,7 @@ import (
 	"main/structs"
 	"os"
 	"strings"
+	"unsafe"
 )
 
 func ReadFileContent(filePath string, idPartition string) (string, error) {
@@ -56,22 +57,55 @@ func ReadFileContent(filePath string, idPartition string) (string, error) {
 		return "", fmt.Errorf("la partición '%s' no se encontró en el disco", partition.Name)
 	}
 
-	// Calcular las posiciones de las estructuras del sistema de archivos
-	startPosition := targetPartition.Part_start
-	inodeCount := int32(float64(targetPartition.Part_size) * 0.05 / float64(structs.INODE_SIZE))
-	blockCount := (targetPartition.Part_size - inodeCount*structs.INODE_SIZE) / structs.BLOCK_SIZE
-
-	bmInodePos := startPosition + structs.SUPERBLOCK_SIZE
-	bmBlockPos := bmInodePos + inodeCount
-	inodePos := bmBlockPos + blockCount
-	blockPos := inodePos + (inodeCount * structs.INODE_SIZE)
-
 	// Abrir el archivo del disco
 	file, err := os.Open(partition.Path)
 	if err != nil {
 		return "", fmt.Errorf("error al abrir el disco: %v", err)
 	}
 	defer file.Close()
+
+	// Detectar el tipo de sistema de archivos leyendo el superbloque
+	startPosition := targetPartition.Part_start
+	realSuperbSize := int(unsafe.Sizeof(structs.Superblock{}))
+	superbBytes := make([]byte, realSuperbSize)
+	_, err = file.ReadAt(superbBytes, int64(startPosition))
+	if err != nil {
+		return "", fmt.Errorf("error al leer el superbloque: %v", err)
+	}
+
+	// Deserializar el superbloque para obtener el tipo de sistema de archivos
+	var superblock structs.Superblock
+	superbBuffer := bytes.NewReader(superbBytes)
+	err = binary.Read(superbBuffer, binary.LittleEndian, &superblock)
+	if err != nil {
+		return "", fmt.Errorf("error al deserializar el superbloque: %v", err)
+	}
+
+	// Verificar si la partición está formateada
+	if superblock.S_filesystem_type == 0 {
+		return "", fmt.Errorf("la partición '%s' no está formateada. Use el comando 'mkfs' para formatearla primero", partition.Name)
+	}
+
+	// Verificar que sea un sistema de archivos válido
+	if superblock.S_filesystem_type != 2 && superblock.S_filesystem_type != 3 {
+		return "", fmt.Errorf("tipo de sistema de archivos no válido: %d. Solo se soportan EXT2 (2) y EXT3 (3)", superblock.S_filesystem_type)
+	}
+
+	var inodePos, blockPos int32
+
+	if superblock.S_filesystem_type == 3 {
+		// EXT3: Usar las posiciones del superbloque
+		inodePos = superblock.S_inode_start
+		blockPos = superblock.S_block_start
+	} else {
+		// EXT2: Usar las posiciones del superbloque
+		inodePos = superblock.S_inode_start
+		blockPos = superblock.S_block_start
+	}
+
+	fmt.Printf("DEBUG ReadFileContent: filesystem_type=%d, inodePos=%d, blockPos=%d\n", superblock.S_filesystem_type, inodePos, blockPos)
+	fmt.Printf("DEBUG ReadFileContent SUPERBLOQUE: S_inode_start=%d, S_block_start=%d\n",
+		superblock.S_inode_start, superblock.S_block_start)
 
 	// Navegar por el path y encontrar el archivo
 	inodeNum, err := FindFileInodeByPath(file, filePath, inodePos, blockPos)

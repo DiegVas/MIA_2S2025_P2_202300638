@@ -8,6 +8,7 @@ import (
 	"main/structs"
 	"os"
 	"strings"
+	"unsafe"
 )
 
 func ReadUsersFile(diskPath, partitionName string) (string, error) {
@@ -34,25 +35,72 @@ func ReadUsersFile(diskPath, partitionName string) (string, error) {
 		return "", fmt.Errorf("la partición '%s' no se encontró en el disco", partitionName)
 	}
 
-	// Calcular las posiciones de las estructuras del sistema de archivos
-	startPosition := targetPartition.Part_start
-	inodeCount := int32(float64(targetPartition.Part_size) * 0.05 / float64(structs.INODE_SIZE))
-	blockCount := (targetPartition.Part_size - inodeCount*structs.INODE_SIZE) / structs.BLOCK_SIZE
-
-	bmInodePos := startPosition + structs.SUPERBLOCK_SIZE
-	bmBlockPos := bmInodePos + inodeCount
-	inodePos := bmBlockPos + blockCount
-	blockPos := inodePos + (inodeCount * structs.INODE_SIZE)
-
-	// Posición del inodo de users.txt (inodo 1)
-	usersInodePos := inodePos + structs.INODE_SIZE
-
 	// ? Abrir el archivo del disco
 	file, err := os.Open(diskPath)
 	if err != nil {
 		return "", fmt.Errorf("error al abrir el disco: %v", err)
 	}
 	defer file.Close()
+
+	// Detectar el tipo de sistema de archivos leyendo el superbloque
+	startPosition := targetPartition.Part_start
+
+	// Debug: verificar el tamaño del superbloque
+	fmt.Printf("DEBUG: SUPERBLOCK_SIZE definido: %d\n", structs.SUPERBLOCK_SIZE)
+	realSuperbSize := int(unsafe.Sizeof(structs.Superblock{}))
+	fmt.Printf("DEBUG: Tamaño real del struct Superblock: %d\n", realSuperbSize)
+
+	// Usar el tamaño real del struct en lugar de la constante
+	superbBytes := make([]byte, realSuperbSize)
+	_, err = file.ReadAt(superbBytes, int64(startPosition))
+	if err != nil {
+		return "", fmt.Errorf("error al leer el superbloque: %v", err)
+	}
+
+	fmt.Printf("DEBUG: Bytes realmente leídos: %d\n", len(superbBytes)) // Deserializar el superbloque para obtener el tipo de sistema de archivos
+	var superblock structs.Superblock
+	superbBuffer := bytes.NewReader(superbBytes)
+	err = binary.Read(superbBuffer, binary.LittleEndian, &superblock)
+	if err != nil {
+		return "", fmt.Errorf("error al deserializar el superbloque: %v", err)
+	}
+
+	fmt.Printf("DEBUG LECTURA: Posición de lectura del superbloque: %d\n", startPosition)
+	fmt.Printf("DEBUG LECTURA: Bytes leídos del superbloque: %v\n", superbBytes[:20]) // Primeros 20 bytes
+	fmt.Printf("DEBUG LECTURA: Tipo de sistema de archivos detectado: %d\n", superblock.S_filesystem_type)
+	fmt.Printf("DEBUG LECTURA: Inodes count: %d\n", superblock.S_inodes_count)
+	fmt.Printf("DEBUG LECTURA: Blocks count: %d\n", superblock.S_blocks_count)
+	fmt.Printf("DEBUG LECTURA: Magic number: %d\n", superblock.S_magic)
+	fmt.Printf("DEBUG LECTURA: Partición start: %d, size: %d\n", targetPartition.Part_start, targetPartition.Part_size)
+
+	// Debug manual de los primeros bytes
+	if len(superbBytes) >= 4 {
+		filesystemType := int32(superbBytes[0]) | int32(superbBytes[1])<<8 | int32(superbBytes[2])<<16 | int32(superbBytes[3])<<24
+		fmt.Printf("DEBUG LECTURA: Tipo de filesystem manual: %d\n", filesystemType)
+	}
+
+	// Verificar si la partición está formateada
+	if superblock.S_filesystem_type == 0 {
+		return "", fmt.Errorf("la partición '%s' no está formateada. Use el comando 'mkfs' para formatearla primero", partitionName)
+	}
+
+	// Verificar que sea un sistema de archivos válido
+	if superblock.S_filesystem_type != 2 && superblock.S_filesystem_type != 3 {
+		return "", fmt.Errorf("tipo de sistema de archivos no válido: %d. Solo se soportan EXT2 (2) y EXT3 (3)", superblock.S_filesystem_type)
+	}
+
+	var inodePos, blockPos int32
+
+	// Usar las posiciones almacenadas en el superbloque para ambos tipos
+	inodePos = superblock.S_inode_start
+	blockPos = superblock.S_block_start
+
+	fmt.Printf("DEBUG ReadUsersFile: Usando posiciones del superbloque - inodePos=%d, blockPos=%d\n", inodePos, blockPos)
+
+	// Posición del inodo de users.txt (inodo 1)
+	usersInodePos := inodePos + structs.INODE_SIZE
+
+	fmt.Printf("DEBUG: usersInodePos=%d\n", usersInodePos)
 
 	// ? Leer el inodo de users.txt
 	inodeBytes := make([]byte, structs.INODE_SIZE)
@@ -66,11 +114,15 @@ func ReadUsersFile(diskPath, partitionName string) (string, error) {
 	buffer := bytes.NewReader(inodeBytes)
 	binary.Read(buffer, binary.LittleEndian, &inode)
 
+	fmt.Printf("DEBUG: Inodo leído - Size: %d, Type: %d, Block[0]: %d\n", inode.I_size, inode.I_type, inode.I_block[0])
+
 	// Leer el contenido usando múltiples bloques
 	content, err := readUsersFileData(file, inode, blockPos)
 	if err != nil {
 		return "", fmt.Errorf("error al leer el contenido: %v", err)
 	}
+
+	fmt.Printf("DEBUG: Contenido leído: '%s'\n", content)
 
 	return content, nil
 }
@@ -80,9 +132,13 @@ func readUsersFileData(file *os.File, inode structs.Inode, blockPos int32) (stri
 	var content strings.Builder
 	totalBytesRead := 0
 
+	fmt.Printf("DEBUG: readUsersFileData - blockPos: %d, inode.I_size: %d\n", blockPos, inode.I_size)
+
 	// Leer bloques directos (slots 0-11)
 	for i := 0; i < 12 && inode.I_block[i] != 0 && totalBytesRead < int(inode.I_size); i++ {
 		blockNum := inode.I_block[i]
+
+		fmt.Printf("DEBUG: Leyendo bloque %d en posición %d\n", blockNum, blockPos+(blockNum*structs.BLOCK_SIZE))
 
 		// Leer el bloque completo
 		blockBytes := make([]byte, structs.BLOCK_SIZE)
@@ -97,10 +153,14 @@ func readUsersFileData(file *os.File, inode structs.Inode, blockPos int32) (stri
 			bytesToRead = int(inode.I_size) - totalBytesRead
 		}
 
+		fmt.Printf("DEBUG: Bytes a leer del bloque: %d, contenido: '%s'\n", bytesToRead, string(blockBytes[:bytesToRead]))
+
 		// Agregar al contenido
 		content.Write(blockBytes[:bytesToRead])
 		totalBytesRead += bytesToRead
 	}
+
+	fmt.Printf("DEBUG: Contenido final leído: '%s', bytes totales: %d\n", content.String(), totalBytesRead)
 
 	return content.String(), nil
 }

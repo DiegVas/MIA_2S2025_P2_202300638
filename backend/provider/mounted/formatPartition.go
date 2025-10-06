@@ -7,6 +7,7 @@ import (
 	"main/structs"
 	"os"
 	"time"
+	"unsafe"
 )
 
 func FormatPartition(params *structs.MkfsParams) error {
@@ -78,8 +79,11 @@ func FormatPartitionEXT2(params *structs.MkfsParams, partition MountedPartition)
 	// ? Posición del superbloque
 	superbPos := startPosition
 
+	// Usar el tamaño real del struct para el cálculo
+	realSuperbSize := int32(unsafe.Sizeof(structs.Superblock{}))
+
 	// ? Posición del bitmap de inodos
-	bmInodePos := superbPos + structs.SUPERBLOCK_SIZE
+	bmInodePos := superbPos + realSuperbSize
 	superblock.S_bm_inode_start = bmInodePos
 
 	// ? Posición del bitmap de bloques
@@ -245,7 +249,7 @@ func FormatPartitionEXT3(params *structs.MkfsParams, partition MountedPartition)
 	// Despejando n:
 	// n = (tamaño_particion - sizeOf(superblock)) / (sizeOf(Journaling) + 1 + 3 + sizeOf(inodos) + 3 * sizeOf(block))
 
-	superblockSize := float64(structs.SUPERBLOCK_SIZE)
+	superblockSize := float64(unsafe.Sizeof(structs.Superblock{}))
 	journalingSize := float64(structs.JOURNALING_SIZE)
 	inodeSize := float64(structs.INODE_SIZE)
 	blockSize := float64(structs.BLOCK_SIZE)
@@ -283,8 +287,11 @@ func FormatPartitionEXT3(params *structs.MkfsParams, partition MountedPartition)
 	// Posición del superbloque
 	superbPos := startPosition
 
+	// Usar el tamaño real del struct para el cálculo
+	realSuperbSize := int32(unsafe.Sizeof(structs.Superblock{}))
+
 	// Posición del journaling
-	journalingPos := superbPos + structs.SUPERBLOCK_SIZE
+	journalingPos := superbPos + realSuperbSize
 
 	// Posición del bitmap de inodos
 	bmInodePos := journalingPos + (inodeCount * structs.JOURNALING_SIZE)
@@ -302,7 +309,11 @@ func FormatPartitionEXT3(params *structs.MkfsParams, partition MountedPartition)
 	blockPos := inodePos + (inodeCount * structs.INODE_SIZE)
 	superblock.S_block_start = blockPos
 
-	// Abrir el archivo del disco
+	// DEBUG: Mostrar las posiciones que se escriben en el superbloque
+	fmt.Printf("DEBUG FORMATEO EXT3 SUPERBLOQUE: bmInodePos=%d, bmBlockPos=%d, inodePos=%d, blockPos=%d\n",
+		bmInodePos, bmBlockPos, inodePos, blockPos)
+	fmt.Printf("DEBUG FORMATEO EXT3 SUPERBLOQUE: S_inode_start=%d, S_block_start=%d\n",
+		superblock.S_inode_start, superblock.S_block_start) // Abrir el archivo del disco
 	diskFile, err := os.OpenFile(partition.Path, os.O_RDWR, 0666)
 	if err != nil {
 		return fmt.Errorf("error al abrir el disco: %v", err)
@@ -317,7 +328,15 @@ func FormatPartitionEXT3(params *structs.MkfsParams, partition MountedPartition)
 		return fmt.Errorf("error al escribir el superbloque: %v", err)
 	}
 
-	// Inicializar el journaling (se llenarán con registros vacíos)
+	// Forzar el sync para asegurar que los datos se escriban al disco
+	err = diskFile.Sync()
+	if err != nil {
+		return fmt.Errorf("error al sincronizar el disco: %v", err)
+	}
+
+	// DEBUG: Verificar que se escribió correctamente
+	fmt.Printf("DEBUG FORMATEO EXT3: Superbloque escrito en posición %d con tipo %d\n", superbPos, superblock.S_filesystem_type)
+	fmt.Printf("DEBUG FORMATEO EXT3: inodePos=%d, blockPos=%d\n", inodePos, blockPos) // Inicializar el journaling (se llenarán con registros vacíos)
 	emptyJournal := structs.Jornal{
 		J_count:   0,
 		J_content: structs.InformationAccion{},

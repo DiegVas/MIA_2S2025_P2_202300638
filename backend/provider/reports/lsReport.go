@@ -52,7 +52,7 @@ func generateLSReport(partitionID, dirPath string) (string, error) {
 	}
 
 	// Obtener entradas del directorio
-	entries, err := GetDirectoryEntries(file, dirInode, superblock)
+	entries, err := GetDirectoryEntries(file, dirInode, superblock, dirInodeNum)
 	if err != nil {
 		return "", fmt.Errorf("error leyendo entradas del directorio: %v", err)
 	}

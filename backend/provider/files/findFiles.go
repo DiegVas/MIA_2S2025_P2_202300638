@@ -92,7 +92,7 @@ func searchRecursive(file *os.File, currentPath string, dirInodeNum int32, patte
 	}
 
 	// Obtener entradas del directorio
-	entries, err := reports.GetDirectoryEntries(file, dirInode, superblock)
+	entries, err := reports.GetDirectoryEntries(file, dirInode, superblock, dirInodeNum)
 	if err != nil {
 		return fmt.Errorf("error leyendo entradas del directorio: %v", err)
 	}

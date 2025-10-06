@@ -28,9 +28,14 @@ func LoginUser(params *structs.LoginParams) error {
 	if err != nil {
 		return fmt.Errorf("error al leer users.txt: %v", err)
 	}
+
+	fmt.Printf("DEBUG LOGIN: Contenido del archivo users.txt: '%s'\n", content)
+
 	scanner := bufio.NewScanner(strings.NewReader(content))
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
+		fmt.Printf("DEBUG LOGIN: Procesando línea: '%s'\n", line)
+
 		if strings.HasPrefix(line, "#") || line == "" {
 			continue
 		}
@@ -38,7 +43,13 @@ func LoginUser(params *structs.LoginParams) error {
 		for i := range fields {
 			fields[i] = strings.TrimSpace(fields[i])
 		}
+
+		fmt.Printf("DEBUG LOGIN: Campos después del split: %v\n", fields)
+
 		if len(fields) == 5 && fields[1] == "U" {
+			fmt.Printf("DEBUG LOGIN: Encontrado usuario - ID:%s, User:%s, Pass:%s, Buscando:%s\n",
+				fields[0], fields[3], fields[4], params.User)
+
 			if fields[3] == params.User {
 				if fields[4] == params.Pass {
 					session.Login(fields[3], params.ID, fields[2])

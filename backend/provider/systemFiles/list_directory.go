@@ -83,7 +83,7 @@ func ListDirectory(params *structs.LSParams) (*structs.DirectoryListing, error) 
 	}
 
 	// Obtener entradas del directorio
-	entries, err := reports.GetDirectoryEntries(file, dirInode, superblock)
+	entries, err := reports.GetDirectoryEntries(file, dirInode, superblock, dirInodeNum)
 	if err != nil {
 		return nil, fmt.Errorf("error leyendo entradas del directorio: %v", err)
 	}

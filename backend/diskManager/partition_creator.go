@@ -671,14 +671,14 @@ func ModifyPartitionSize(params *structs.FdiskParams) error {
 		fmt.Printf("  ✅ Validación de espacio total: EXITOSA\n")
 	}
 
-	// Verificar espacio contiguo disponible
+	// Verificar espacio contiguo disponible y hacer corrimiento si es necesario
 	if addSizeInBytes > 0 {
-		fmt.Printf("🔍 VALIDACIÓN DE ESPACIO CONTIGUO:\n")
-		err = validateContiguousSpaceAfterPartition(mbr, targetPartition, addSizeInBytes)
+		fmt.Printf("🔍 VALIDACIÓN DE ESPACIO CONTIGUO CON CORRIMIENTO:\n")
+		err = validateAndShiftPartitions(diskFile, mbr, targetPartition, addSizeInBytes)
 		if err != nil {
-			return fmt.Errorf("❌ ESPACIO CONTIGUO INSUFICIENTE: %v", err)
+			return fmt.Errorf("❌ ERROR EN VALIDACIÓN/CORRIMIENTO: %v", err)
 		}
-		fmt.Printf("  ✅ Validación de espacio contiguo: EXITOSA\n")
+		fmt.Printf("  ✅ Validación/corrimiento de espacio: EXITOSA\n")
 	}
 
 	// Manejar el cambio físico en el disco
@@ -1226,6 +1226,141 @@ func validateLogicalPartitionSpace(diskFile *os.File, ebr *structs.EBR, required
 	// Si no hay siguiente partición, el espacio está limitado por el final de la partición extendida
 	// Esta validación se debe hacer desde el nivel superior (partición extendida)
 
+	return nil
+}
+
+// shiftPartitionsToMakeSpace mueve todas las particiones después de la especificada para crear espacio contiguo
+func shiftPartitionsToMakeSpace(diskFile *os.File, mbr *structs.MBR, targetPartition *structs.PARTITION, requiredSpace int32) error {
+	partitionEnd := targetPartition.Part_start + targetPartition.Part_size
+
+	// Encontrar todas las particiones que necesitan moverse
+	var partitionsToMove []struct {
+		index     int
+		partition *structs.PARTITION
+	}
+
+	for i := 0; i < 4; i++ {
+		if mbr.Partitions[i].Part_status[0] == 1 && mbr.Partitions[i].Part_start > partitionEnd {
+			partitionsToMove = append(partitionsToMove, struct {
+				index     int
+				partition *structs.PARTITION
+			}{i, &mbr.Partitions[i]})
+		}
+	}
+
+	if len(partitionsToMove) == 0 {
+		// No hay particiones que mover, el espacio está disponible
+		return nil
+	}
+
+	fmt.Printf("🔄 INICIANDO CORRIMIENTO DE PARTICIONES:\n")
+	fmt.Printf("  Espacio requerido: %d bytes (%.2f MB)\n", requiredSpace, float64(requiredSpace)/(1024*1024))
+	fmt.Printf("  Particiones a mover: %d\n", len(partitionsToMove))
+
+	// Ordenar particiones por posición de inicio (de izquierda a derecha)
+	for i := 0; i < len(partitionsToMove)-1; i++ {
+		for j := i + 1; j < len(partitionsToMove); j++ {
+			if partitionsToMove[i].partition.Part_start > partitionsToMove[j].partition.Part_start {
+				partitionsToMove[i], partitionsToMove[j] = partitionsToMove[j], partitionsToMove[i]
+			}
+		}
+	}
+
+	// Verificar que hay espacio suficiente al final del disco
+	lastPartition := partitionsToMove[len(partitionsToMove)-1].partition
+	lastPartitionEnd := lastPartition.Part_start + lastPartition.Part_size
+	availableSpaceAtEnd := mbr.Mbr_size - lastPartitionEnd
+
+	if availableSpaceAtEnd < requiredSpace {
+		return fmt.Errorf("no hay espacio suficiente al final del disco para hacer el corrimiento. Disponible: %d bytes, Requerido: %d bytes",
+			availableSpaceAtEnd, requiredSpace)
+	}
+
+	// Mover las particiones de derecha a izquierda para evitar solapamientos
+	for i := len(partitionsToMove) - 1; i >= 0; i-- {
+		partition := partitionsToMove[i].partition
+		partName := strings.TrimRight(string(partition.Part_name[:]), "\x00")
+
+		fmt.Printf("  Moviendo partición '%s' desde %d hacia %d...\n",
+			partName, partition.Part_start, partition.Part_start+requiredSpace)
+
+		// Leer los datos de la partición
+		partitionData := make([]byte, partition.Part_size)
+		_, err := diskFile.ReadAt(partitionData, int64(partition.Part_start))
+		if err != nil {
+			return fmt.Errorf("error al leer datos de partición '%s': %v", partName, err)
+		}
+
+		// Escribir los datos en la nueva posición
+		newStart := partition.Part_start + requiredSpace
+		_, err = diskFile.WriteAt(partitionData, int64(newStart))
+		if err != nil {
+			return fmt.Errorf("error al escribir datos de partición '%s' en nueva posición: %v", partName, err)
+		}
+
+		// Limpiar la posición anterior con ceros
+		zeros := make([]byte, partition.Part_size)
+		_, err = diskFile.WriteAt(zeros, int64(partition.Part_start))
+		if err != nil {
+			return fmt.Errorf("error al limpiar posición anterior de partición '%s': %v", partName, err)
+		}
+
+		// Actualizar la posición de inicio en el MBR
+		mbr.Partitions[partitionsToMove[i].index].Part_start = newStart
+
+		fmt.Printf("  ✓ Partición '%s' movida exitosamente\n", partName)
+	}
+
+	fmt.Printf("  ✅ Corrimiento de particiones completado exitosamente\n")
+	return nil
+}
+
+// validateAndShiftPartitions valida espacio contiguo y si no hay suficiente, intenta hacer corrimiento
+func validateAndShiftPartitions(diskFile *os.File, mbr *structs.MBR, targetPartition *structs.PARTITION, requiredSpace int32) error {
+	partitionEnd := targetPartition.Part_start + targetPartition.Part_size
+	diskEnd := mbr.Mbr_size
+
+	// Buscar la siguiente partición más cercana
+	nextPartitionStart := diskEnd
+	var nextPartition *structs.PARTITION
+
+	for i := 0; i < 4; i++ {
+		if mbr.Partitions[i].Part_status[0] == 1 &&
+			mbr.Partitions[i].Part_start > partitionEnd &&
+			mbr.Partitions[i].Part_start < nextPartitionStart {
+
+			partName := strings.TrimRight(string(mbr.Partitions[i].Part_name[:]), "\x00")
+			fmt.Printf("  Siguiente partición encontrada: '%s', start=%d\n", partName, mbr.Partitions[i].Part_start)
+			nextPartitionStart = mbr.Partitions[i].Part_start
+			nextPartition = &mbr.Partitions[i]
+		}
+	}
+
+	availableContiguousSpace := nextPartitionStart - partitionEnd
+	fmt.Printf("  Espacio contiguo disponible: %d bytes (%.2f MB)\n",
+		availableContiguousSpace, float64(availableContiguousSpace)/(1024*1024))
+
+	if availableContiguousSpace >= requiredSpace {
+		fmt.Printf("  ✓ Validación exitosa: hay suficiente espacio contiguo\n")
+		return nil
+	}
+
+	// No hay espacio contiguo suficiente, intentar corrimiento
+	fmt.Printf("  ⚠️  Espacio contiguo insuficiente. Intentando corrimiento de particiones...\n")
+
+	if nextPartition == nil {
+		// No hay particiones que mover, pero no hay espacio
+		return fmt.Errorf("no hay espacio suficiente al final del disco. Disponible: %d bytes, Requerido: %d bytes",
+			availableContiguousSpace, requiredSpace)
+	}
+
+	// Intentar hacer el corrimiento
+	err := shiftPartitionsToMakeSpace(diskFile, mbr, targetPartition, requiredSpace)
+	if err != nil {
+		return fmt.Errorf("error durante el corrimiento de particiones: %v", err)
+	}
+
+	fmt.Printf("  ✅ Espacio contiguo creado exitosamente mediante corrimiento\n")
 	return nil
 }
 

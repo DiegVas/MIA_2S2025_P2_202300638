@@ -13,32 +13,40 @@ import (
 	"os"
 	"strings"
 	"time"
+	"unsafe"
 )
 
 func FindOrCreateParentDirectory(file *os.File, dirPath string, session *structs.Session,
 	inodePos, blockPos, bmInodePos, bmBlockPos, inodeCount, blockCount int32, createParents bool) (int32, error) {
 
-	if dirPath == "" {
+	fmt.Printf("DEBUG FindOrCreateParentDirectory: dirPath='%s', createParents=%t\n", dirPath, createParents)
 
+	if dirPath == "" {
+		fmt.Printf("DEBUG FindOrCreateParentDirectory: dirPath vacío, retornando inodo raíz (0)\n")
 		return 0, nil
 	}
 
 	components := strings.Split(dirPath, "/")
 	currentInodeNum := int32(0)
 
-	for _, component := range components {
-		if component == "" {
+	fmt.Printf("DEBUG FindOrCreateParentDirectory: componentes del path: %v\n", components)
 
+	for i, component := range components {
+		if component == "" {
+			fmt.Printf("DEBUG FindOrCreateParentDirectory: Saltando componente vacío en índice %d\n", i)
 			continue
 		}
+
+		fmt.Printf("DEBUG FindOrCreateParentDirectory: Procesando componente %d: '%s', inodo actual: %d\n", i, component, currentInodeNum)
 
 		// ? Buscar el directorio en el inodo actual
 		nextInodeNum, exists := FindFileInDirectoryByInode(file, component, currentInodeNum, inodePos, blockPos)
 
 		if !exists {
+			fmt.Printf("DEBUG FindOrCreateParentDirectory: Componente '%s' no existe en inodo %d\n", component, currentInodeNum)
 
 			if !createParents {
-
+				fmt.Printf("DEBUG FindOrCreateParentDirectory: createParents=false, error: directorio '%s' no existe\n", component)
 				return -1, fmt.Errorf("el directorio '%s' no existe", component)
 			}
 
@@ -64,20 +72,29 @@ func FindOrCreateParentDirectory(file *os.File, dirPath string, session *structs
 				return -1, fmt.Errorf("error al crear directorio '%s': %v", component, err)
 			}
 
+		} else {
+			fmt.Printf("DEBUG FindOrCreateParentDirectory: Componente '%s' encontrado en inodo %d\n", component, nextInodeNum)
 		}
 
 		currentInodeNum = nextInodeNum
+		fmt.Printf("DEBUG FindOrCreateParentDirectory: Inodo actual actualizado a: %d\n", currentInodeNum)
 	}
 
+	fmt.Printf("DEBUG FindOrCreateParentDirectory: Retornando inodo final: %d\n", currentInodeNum)
 	return currentInodeNum, nil
 }
 
 func FindFileInDirectoryByInode(file *os.File, name string, dirInodeNum, inodePos, blockPos int32) (int32, bool) {
+	fmt.Printf("DEBUG FindFileInDirectoryByInode: Buscando '%s' en inodo %d\n", name, dirInodeNum)
+	fmt.Printf("DEBUG FindFileInDirectoryByInode: inodePos=%d, blockPos=%d\n", inodePos, blockPos)
 
 	// ? Leer el inodo del directorio
 	inodeBytes := make([]byte, structs.INODE_SIZE)
-	_, err := file.ReadAt(inodeBytes, int64(inodePos+(dirInodeNum*structs.INODE_SIZE)))
+	inodePosition := int64(inodePos + (dirInodeNum * structs.INODE_SIZE))
+	fmt.Printf("DEBUG FindFileInDirectoryByInode: Leyendo inodo en posición %d\n", inodePosition)
+	_, err := file.ReadAt(inodeBytes, inodePosition)
 	if err != nil {
+		fmt.Printf("DEBUG FindFileInDirectoryByInode: Error leyendo inodo: %v\n", err)
 		return -1, false
 	}
 
@@ -85,15 +102,31 @@ func FindFileInDirectoryByInode(file *os.File, name string, dirInodeNum, inodePo
 	buffer := bytes.NewReader(inodeBytes)
 	binary.Read(buffer, binary.LittleEndian, &inode)
 
+	fmt.Printf("DEBUG FindFileInDirectoryByInode: Inodo leído - Type: %d, Size: %d\n", inode.I_type, inode.I_size)
+	fmt.Printf("DEBUG FindFileInDirectoryByInode: Bloques asignados: %v\n", inode.I_block[:5]) // Mostrar los primeros 5 bloques
+
+	// ESPECIAL DEBUG PARA INODO RAÍZ
+	if dirInodeNum == 0 {
+		fmt.Printf("DEBUG INODO RAÍZ: UID=%d, GID=%d, Permisos=%d\n", inode.I_uid, inode.I_gid, inode.I_perm)
+		fmt.Printf("DEBUG INODO RAÍZ: Bytes raw del inodo: %v\n", inodeBytes[:40]) // Primeros 40 bytes
+	}
+
 	// ? Buscar en todos los bloques directos del directorio
 	for i := 0; i < 12; i++ { // Los primeros 12 son bloques directos
-		if inode.I_block[i] != 0 {
-			blockNum := inode.I_block[i]
+		fmt.Printf("DEBUG FindFileInDirectoryByInode: Revisando slot %d: bloque=%d\n", i, inode.I_block[i])
+
+		// Permitir bloque 0 SOLO para el slot 0 del inodo raíz
+		// Para todos los demás casos, bloque 0 significa "no asignado"
+		blockNum := inode.I_block[i]
+		if blockNum > 0 || (dirInodeNum == 0 && i == 0 && blockNum == 0) {
+			fmt.Printf("DEBUG FindFileInDirectoryByInode: Procesando bloque %d (blockNum=%d)\n", i, blockNum)
 
 			blockBytes := make([]byte, structs.BLOCK_SIZE)
-			_, err = file.ReadAt(blockBytes, int64(blockPos+(blockNum*structs.BLOCK_SIZE)))
+			blockPosition := int64(blockPos + (blockNum * structs.BLOCK_SIZE))
+			fmt.Printf("DEBUG FindFileInDirectoryByInode: Leyendo bloque en posición %d\n", blockPosition)
+			_, err = file.ReadAt(blockBytes, blockPosition)
 			if err != nil {
-
+				fmt.Printf("DEBUG FindFileInDirectoryByInode: Error leyendo bloque %d: %v\n", i, err)
 				continue
 			}
 
@@ -101,16 +134,22 @@ func FindFileInDirectoryByInode(file *os.File, name string, dirInodeNum, inodePo
 			buffer = bytes.NewReader(blockBytes)
 			binary.Read(buffer, binary.LittleEndian, &folderBlock)
 
+			fmt.Printf("DEBUG FindFileInDirectoryByInode: Buscando en bloque %d\n", blockNum)
 			// ? Buscar el archivo en las entradas de este bloque
-			for _, content := range folderBlock.B_content {
+			for j, content := range folderBlock.B_content {
 				entryName := strings.TrimRight(string(content.B_name[:]), "\x00")
+				fmt.Printf("DEBUG FindFileInDirectoryByInode: Entrada %d: nombre='%s', inodo=%d\n", j, entryName, content.B_inodo)
 				if entryName == name {
+					fmt.Printf("DEBUG FindFileInDirectoryByInode: ¡Encontrado! '%s' en inodo %d\n", name, content.B_inodo)
 					return content.B_inodo, true
 				}
 			}
+		} else {
+			fmt.Printf("DEBUG FindFileInDirectoryByInode: Slot %d está vacío (bloque=%d)\n", i, blockNum)
 		}
 	}
 
+	fmt.Printf("DEBUG FindFileInDirectoryByInode: No se encontró '%s' en inodo %d\n", name, dirInodeNum)
 	return -1, false
 }
 
@@ -317,22 +356,50 @@ func CreateDirectory(params *structs.MkdirParams) error {
 		return fmt.Errorf("la partición '%s' no se encontró en el disco", partition.Name)
 	}
 
-	// Calcular las posiciones de las estructuras del sistema de archivos
-	startPosition := targetPartition.Part_start
-	inodeCount := int32(float64(targetPartition.Part_size) * 0.05 / float64(structs.INODE_SIZE))
-	blockCount := (targetPartition.Part_size - inodeCount*structs.INODE_SIZE) / structs.BLOCK_SIZE
-
-	bmInodePos := startPosition + structs.SUPERBLOCK_SIZE
-	bmBlockPos := bmInodePos + inodeCount
-	inodePos := bmBlockPos + blockCount
-	blockPos := inodePos + (inodeCount * structs.INODE_SIZE)
-
 	// Abrir el archivo del disco para escritura
 	diskFile, err := os.OpenFile(partition.Path, os.O_RDWR, 0644)
 	if err != nil {
 		return fmt.Errorf("error al abrir el disco: %v", err)
 	}
 	defer diskFile.Close()
+
+	// Detectar el tipo de sistema de archivos leyendo el superbloque
+	startPosition := targetPartition.Part_start
+	realSuperbSize := int(unsafe.Sizeof(structs.Superblock{}))
+	superbBytes := make([]byte, realSuperbSize)
+	_, err = diskFile.ReadAt(superbBytes, int64(startPosition))
+	if err != nil {
+		return fmt.Errorf("error al leer el superbloque: %v", err)
+	}
+
+	// Deserializar el superbloque para obtener el tipo de sistema de archivos
+	var superblock structs.Superblock
+	superbBuffer := bytes.NewReader(superbBytes)
+	err = binary.Read(superbBuffer, binary.LittleEndian, &superblock)
+	if err != nil {
+		return fmt.Errorf("error al deserializar el superbloque: %v", err)
+	}
+
+	// Verificar si la partición está formateada
+	if superblock.S_filesystem_type == 0 {
+		return fmt.Errorf("la partición '%s' no está formateada. Use el comando 'mkfs' para formatearla primero", partition.Name)
+	}
+
+	// Verificar que sea un sistema de archivos válido
+	if superblock.S_filesystem_type != 2 && superblock.S_filesystem_type != 3 {
+		return fmt.Errorf("tipo de sistema de archivos no válido: %d. Solo se soportan EXT2 (2) y EXT3 (3)", superblock.S_filesystem_type)
+	}
+
+	// Usar las posiciones almacenadas en el superbloque
+	bmInodePos := superblock.S_bm_inode_start
+	bmBlockPos := superblock.S_bm_block_start
+	inodePos := superblock.S_inode_start
+	blockPos := superblock.S_block_start
+	inodeCount := superblock.S_inodes_count
+	blockCount := superblock.S_blocks_count
+
+	fmt.Printf("DEBUG CreateDirectory: filesystem_type=%d, usando posiciones del superbloque\n", superblock.S_filesystem_type)
+	fmt.Printf("DEBUG CreateDirectory: inodePos=%d, blockPos=%d\n", inodePos, blockPos)
 
 	// Si el parámetro -p está presente, crear directorios padre
 	if params.P {

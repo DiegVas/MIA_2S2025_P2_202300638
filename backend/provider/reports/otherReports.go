@@ -592,7 +592,10 @@ func FindInodeByPath(file *os.File, path string, superblock *structs.Superblock)
 		found := false
 
 		for i := 0; i < 12; i++ { // Bloques directos
-			if currentInode.I_block[i] != 0 { // Verificar que el bloque sea válido
+			blockNum := currentInode.I_block[i]
+			// Permitir bloque 0 SOLO para el slot 0 del inodo raíz
+			// Para todos los demás casos, bloque 0 significa "no asignado"
+			if blockNum > 0 || (currentInodeNum == 0 && i == 0 && blockNum == 0) {
 
 				blockBytes := make([]byte, structs.BLOCK_SIZE)
 				// Calcular la posición correcta del bloque dentro de la partición
@@ -600,9 +603,9 @@ func FindInodeByPath(file *os.File, path string, superblock *structs.Superblock)
 				if superblock.S_block_start == 0 {
 					// Calcular: inode_start + (inodes_count * inode_size)
 					blockPos = superblock.S_inode_start + (superblock.S_inodes_count * structs.INODE_SIZE)
-					blockPos += (currentInode.I_block[i] * structs.BLOCK_SIZE)
+					blockPos += (blockNum * structs.BLOCK_SIZE)
 				} else {
-					blockPos = superblock.S_block_start + (currentInode.I_block[i] * structs.BLOCK_SIZE)
+					blockPos = superblock.S_block_start + (blockNum * structs.BLOCK_SIZE)
 				}
 
 				_, err = file.ReadAt(blockBytes, int64(blockPos))
@@ -659,12 +662,23 @@ func ReadInodeAt(file *os.File, inodeNum, inodeStart int32) (*structs.Inode, err
 }
 
 // getDirectoryEntries obtiene todas las entradas de un directorio
-func GetDirectoryEntries(file *os.File, dirInode *structs.Inode, superblock *structs.Superblock) ([]DirectoryEntry, error) {
+func GetDirectoryEntries(file *os.File, dirInode *structs.Inode, superblock *structs.Superblock, dirInodeNum int32) ([]DirectoryEntry, error) {
 	var entries []DirectoryEntry
 
+	fmt.Printf("DEBUG GetDirectoryEntries: Procesando directorio inodo %d\n", dirInodeNum)
+	fmt.Printf("DEBUG GetDirectoryEntries: Bloques del inodo: %v\n", dirInode.I_block[:5])
+
 	// Leer bloques directos del directorio
+	blocksProcessed := 0
 	for i := 0; i < 12; i++ { // Los primeros 12 son bloques directos
-		if dirInode.I_block[i] != 0 {
+		blockNum := dirInode.I_block[i]
+		fmt.Printf("DEBUG GetDirectoryEntries: Slot %d: bloque=%d\n", i, blockNum)
+
+		// Permitir bloque 0 SOLO para el slot 0 del inodo raíz
+		// Para todos los demás casos, bloque 0 significa "no asignado"
+		if blockNum > 0 || (dirInodeNum == 0 && i == 0 && blockNum == 0) {
+			fmt.Printf("DEBUG GetDirectoryEntries: Procesando bloque %d (slot %d)\n", blockNum, i)
+			blocksProcessed++
 			blockBytes := make([]byte, structs.BLOCK_SIZE)
 
 			// Verificar si S_block_start es 0 y calcularlo manualmente si es necesario
@@ -672,9 +686,9 @@ func GetDirectoryEntries(file *os.File, dirInode *structs.Inode, superblock *str
 			if superblock.S_block_start == 0 {
 				// Calcular: inode_start + (inodes_count * inode_size)
 				blockPos = superblock.S_inode_start + (superblock.S_inodes_count * structs.INODE_SIZE)
-				blockPos += (dirInode.I_block[i] * structs.BLOCK_SIZE)
+				blockPos += (blockNum * structs.BLOCK_SIZE)
 			} else {
-				blockPos = superblock.S_block_start + (dirInode.I_block[i] * structs.BLOCK_SIZE)
+				blockPos = superblock.S_block_start + (blockNum * structs.BLOCK_SIZE)
 			}
 
 			_, err := file.ReadAt(blockBytes, int64(blockPos))
@@ -695,15 +709,19 @@ func GetDirectoryEntries(file *os.File, dirInode *structs.Inode, superblock *str
 			for _, content := range folderBlock.B_content {
 				entryName := strings.TrimRight(string(content.B_name[:]), "\x00")
 				if entryName != "" && content.B_inodo >= 0 {
+					fmt.Printf("DEBUG GetDirectoryEntries: Entrada encontrada: '%s' -> inodo %d\n", entryName, content.B_inodo)
 					entries = append(entries, DirectoryEntry{
 						Name:     entryName,
 						InodeNum: content.B_inodo,
 					})
 				}
 			}
+		} else {
+			fmt.Printf("DEBUG GetDirectoryEntries: Slot %d vacío (bloque=%d)\n", i, blockNum)
 		}
 	}
 
+	fmt.Printf("DEBUG GetDirectoryEntries: Total bloques procesados: %d, Total entradas: %d\n", blocksProcessed, len(entries))
 	return entries, nil
 }
 

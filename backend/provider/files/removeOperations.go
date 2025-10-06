@@ -117,7 +117,7 @@ func canDeleteDirectoryRecursively(file *os.File, dirInodeNum int32, session *st
 		return false, err
 	}
 
-	entries, err := reports.GetDirectoryEntries(file, dirInode, sb)
+	entries, err := reports.GetDirectoryEntries(file, dirInode, sb, dirInodeNum)
 	if err != nil {
 		return false, err
 	}
@@ -166,7 +166,7 @@ func removeInodeRecursively(file *os.File, inodeNum int32, sb *structs.Superbloc
 
 	// Si es directorio, eliminar contenido recursivamente
 	if inode.I_type == 1 {
-		entries, err := reports.GetDirectoryEntries(file, inode, sb)
+		entries, err := reports.GetDirectoryEntries(file, inode, sb, inodeNum)
 		if err != nil {
 			return err
 		}

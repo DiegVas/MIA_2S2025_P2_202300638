@@ -132,7 +132,7 @@ func RenameFile(params *structs.RenameFileParams) error {
 	}
 
 	// Obtener entradas del directorio
-	entries, err := reports.GetDirectoryEntries(file, dirInode, superblock)
+	entries, err := reports.GetDirectoryEntries(file, dirInode, superblock, parentInodeNum)
 	if err != nil {
 		return fmt.Errorf("error al obtener las entradas del directorio: %v", err)
 	}
