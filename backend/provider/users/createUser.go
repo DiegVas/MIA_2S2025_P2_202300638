@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"main/provider/mounted"
 	"main/structs"
+	"main/utils/journaling"
 	"strconv"
 	"strings"
 )
@@ -75,6 +76,10 @@ func CreateUser(params *structs.UserParams) error {
 		fmt.Printf("ERROR en WriteUsersFile: %v\n", err)
 		return fmt.Errorf("error al escribir el archivo de usuarios: %v", err)
 	}
+
+	// Registrar la creación del usuario en el journal EXT3
+	journaling.LogEXT3Operation(session.ID, "CREATE_USER", "/users.txt",
+		fmt.Sprintf("Usuario '%s' creado con UID %d en grupo '%s'", params.User, newUID, params.Grp))
 
 	return nil
 }

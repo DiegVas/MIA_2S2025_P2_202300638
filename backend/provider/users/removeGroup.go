@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"main/provider/mounted"
-
 	"main/structs"
+	"main/utils/journaling"
 	"strconv"
 	"strings"
 )
@@ -81,6 +81,10 @@ func RemoveGroup(params *structs.GroupParams) error {
 	if err != nil {
 		return fmt.Errorf("error al escribir el archivo de usuarios: %v", err)
 	}
+
+	// Registrar la eliminación del grupo en el journal EXT3
+	journaling.LogEXT3Operation(session.ID, "REMOVE_GROUP", "/users.txt",
+		fmt.Sprintf("Grupo '%s' eliminado (GID marcado como 0)", params.Name))
 
 	return nil
 }

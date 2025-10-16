@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"main/structs"
+	"main/utils/journaling"
 	"os"
 	"time"
 	"unsafe"
@@ -445,6 +446,10 @@ func FormatPartitionEXT3(params *structs.MkfsParams, partition MountedPartition)
 	if err != nil {
 		return fmt.Errorf("error al escribir el bloque del archivo users.txt: %v", err)
 	}
+
+	// Registrar la creación de users.txt en el journal EXT3
+	journaling.LogEXT3Operation(params.ID, "CREATE_SYSTEM_FILE", "/users.txt",
+		fmt.Sprintf("Archivo del sistema users.txt creado durante formateo EXT3 - tamaño: %d bytes", len(usersContent)))
 
 	return nil
 }

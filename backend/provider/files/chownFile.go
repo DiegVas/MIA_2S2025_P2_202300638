@@ -9,6 +9,7 @@ import (
 	"main/provider/reports"
 	"main/provider/users"
 	"main/structs"
+	"main/utils/journaling"
 	"os"
 	"strings"
 )
@@ -87,7 +88,7 @@ func ChangeOwner(params *structs.ChownParams) error {
 	}
 
 	// Buscar el archivo/carpeta usando la función que funciona en moveFile
-	inodeNum, err := common.FindFileInodeByPath(file, params.Path, inodePos, blockPos)
+	inodeNum, err := common.FindFileInodeByPath(file, params.Path, superblock, inodePos, blockPos)
 	if err != nil {
 		return fmt.Errorf("no se encontró la ruta '%s': %v", params.Path, err)
 	}
@@ -103,6 +104,14 @@ func ChangeOwner(params *structs.ChownParams) error {
 	if err != nil {
 		return fmt.Errorf("error cambiando propietario: %v", err)
 	}
+
+	// Registrar el cambio de propietario en el journal EXT3
+	recursiveStr := ""
+	if params.R {
+		recursiveStr = " (recursivo)"
+	}
+	journaling.LogEXT3Operation(session.ID, "CHANGE_OWNER", params.Path,
+		fmt.Sprintf("Propietario cambiado a usuario '%s'%s", params.Usuario, recursiveStr))
 
 	return nil
 }

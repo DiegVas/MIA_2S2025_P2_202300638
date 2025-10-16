@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-func findFileInDirectory(file *os.File, name string, dirInode structs.Inode, blockPos int32) (int32, error) {
+func findFileInDirectory(file *os.File, name string, dirInode structs.Inode, superblock *structs.Superblock, blockPos int32) (int32, error) {
 	fmt.Printf("DEBUG findFileInDirectory: Buscando '%s', dirInode.I_size=%d, blockPos=%d\n", name, dirInode.I_size, blockPos)
 
 	// Calcular cuántos bloques necesita este directorio basándose en su tamaño
@@ -26,10 +26,19 @@ func findFileInDirectory(file *os.File, name string, dirInode structs.Inode, blo
 		if blockNum >= 0 { // Verificar que el bloque sea válido (>= 0)
 
 			blockBytes := make([]byte, structs.BLOCK_SIZE)
-			blockPosition := int64(blockPos + (blockNum * structs.BLOCK_SIZE))
-			fmt.Printf("DEBUG findFileInDirectory: Leyendo en posición %d\n", blockPosition)
 
-			_, err := file.ReadAt(blockBytes, blockPosition)
+			// Usar la misma lógica que GetDirectoryEntries para calcular la posición del bloque
+			var blockPosition int32
+			if superblock.S_block_start == 0 {
+				// Calcular: inode_start + (inodes_count * inode_size) + (blockNum * block_size)
+				blockPosition = superblock.S_inode_start + (superblock.S_inodes_count * structs.INODE_SIZE) + (blockNum * structs.BLOCK_SIZE)
+			} else {
+				blockPosition = superblock.S_block_start + (blockNum * structs.BLOCK_SIZE)
+			}
+
+			fmt.Printf("DEBUG findFileInDirectory: Leyendo bloque %d en posición %d (S_block_start=%d)\n", blockNum, blockPosition, superblock.S_block_start)
+
+			_, err := file.ReadAt(blockBytes, int64(blockPosition))
 			if err != nil {
 				fmt.Printf("DEBUG findFileInDirectory: Error leyendo bloque: %v\n", err)
 				continue

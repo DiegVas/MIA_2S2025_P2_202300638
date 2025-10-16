@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"main/provider/mounted"
-
 	"main/structs"
+	"main/utils/journaling"
 	"strconv"
 	"strings"
 )
@@ -76,6 +76,10 @@ func CreateGroup(params *structs.GroupParams) error {
 	if err != nil {
 		return fmt.Errorf("error al escribir el archivo de usuarios: %v", err)
 	}
+
+	// Registrar la creación del grupo en el journal EXT3
+	journaling.LogEXT3Operation(session.ID, "CREATE_GROUP", "/users.txt",
+		fmt.Sprintf("Grupo '%s' creado con GID %d", params.Name, newGID))
 
 	return nil
 }

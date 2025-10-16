@@ -7,11 +7,11 @@ digraph Block_Report {
 
     title [label="BLOCK Report\nParticion: 381A", fillcolor=lightblue, fontsize=14];
 
-    block_0 [label="BLOQUE 0\n(CARPETA)\n[0] . → 0\n[1] .. → 0\n[2] users.txt → 1\n[3] home → 2", fillcolor=lightyellow];
+    block_0 [label="BLOQUE 0\n(CARPETA)\n[0] home → 2\n[1] .. → 0\n[2] users.txt → 1", fillcolor=lightyellow];
     block_1 [label="BLOQUE 1\n(ARCHIVO)\n1, G, root \n1, U, root, root, 123 \n2, G, usuarios\n...", fillcolor=lightyellow];
     block_2 [label="BLOQUE 2\n(ARCHIVO)\n, mail\n5, G, news\n2, U, root, usuario1, password\n3, U, usuarios,", fillcolor=lightyellow];
     block_3 [label="BLOQUE 3\n(ARCHIVO)\nuser1, abc\n0, U, adm, user2, abc", fillcolor=lightyellow];
-    block_4 [label="BLOQUE 4\n(CARPETA)\n[0] . → 2\n[1] .. → 0\n[2] archivos → 3", fillcolor=lightyellow];
+    block_4 [label="BLOQUE 4\n(CARPETA)\n[0] . → 2\n[1] archivos → 3", fillcolor=lightyellow];
     block_5 [label="BLOQUE 5\n(CARPETA)\n[0] . → 3\n[1] .. → 2\n[2] user → 4\n[3] carpeta1 → 7", fillcolor=lightyellow];
     block_6 [label="BLOQUE 6\n(CARPETA)\n[0] . → 4\n[1] .. → 3\n[2] docs → 5", fillcolor=lightyellow];
     block_7 [label="BLOQUE 7\n(CARPETA)\n[0] . → 5\n[1] .. → 4\n[2] usac → 6\n[3] Tarea.txt → 12", fillcolor=lightyellow];

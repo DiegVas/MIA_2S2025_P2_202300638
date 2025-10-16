@@ -111,11 +111,17 @@ func HandlePostUser(w http.ResponseWriter, r *http.Request) {
 		handleCopy(w, command.Command)
 	case "find":
 		handleFind(w, command.Command)
+	case "recovery":
+		handleRecovery(w, command.Command)
+	case "loss":
+		handleLoss(w, command.Command)
+	case "journaling":
+		handleJournaling(w, command.Command)
 
 	default:
 
 		response := structs.Response{
-			Message: "Comando no reconocido. Comandos soportados: LS, PARTDISK, MKDISK, RMDISK, FDISK, MOUNT, UNMOUNT, MOUNTED, MKFS, LOGIN, LOGOUT, MKGRP, RMGRP, MKUSR, RMUSR, CHGRP, CHOWN, CHMOD, CAT, MKFILE, MKDIR, PDISK, REP, REMOVE, EDIT, RENAME, MOVE, FIND",
+			Message: "Comando no reconocido. Comandos soportados: LS, PARTDISK, MKDISK, RMDISK, FDISK, MOUNT, UNMOUNT, MOUNTED, MKFS, LOGIN, LOGOUT, MKGRP, RMGRP, MKUSR, RMUSR, CHGRP, CHOWN, CHMOD, CAT, MKFILE, MKDIR, PDISK, REP, REMOVE, EDIT, RENAME, MOVE, FIND, RECOVERY, LOSS, JOURNALING",
 			Data:    nil,
 			Type:    "system-error",
 		}

@@ -179,3 +179,30 @@ type ChmodParams struct {
 func (p *ChmodParams) String() string {
 	return fmt.Sprintf("Path: %s, UGO: %s, R: %t", p.Path, p.UGO, p.R)
 }
+
+// RecoveryParams representa los parámetros del comando RECOVERY
+type RecoveryParams struct {
+	ID string // ID de la partición
+}
+
+func (p *RecoveryParams) String() string {
+	return fmt.Sprintf("ID: %s", p.ID)
+}
+
+// LossParams representa los parámetros del comando LOSS
+type LossParams struct {
+	ID string // ID de la partición
+}
+
+func (p *LossParams) String() string {
+	return fmt.Sprintf("ID: %s", p.ID)
+}
+
+// JournalingParams representa los parámetros del comando JOURNALING
+type JournalingParams struct {
+	ID string // ID de la partición
+}
+
+func (p *JournalingParams) String() string {
+	return fmt.Sprintf("ID: %s", p.ID)
+}

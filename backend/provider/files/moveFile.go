@@ -12,6 +12,7 @@ import (
 	"main/provider/common"
 	"main/provider/mounted"
 	"main/structs"
+	"main/utils/journaling"
 )
 
 func MoveFileOrDirectory(params *structs.MoveParams) error {
@@ -26,6 +27,12 @@ func MoveFileOrDirectory(params *structs.MoveParams) error {
 	partition, found := mountManager.GetMountedPartition(session.ID)
 	if !found {
 		return fmt.Errorf("no hay ninguna partición montada para esta sesión")
+	}
+
+	// Leer el superbloque
+	superblock, err := common.ReadSuperblock(partition.Path, session.ID)
+	if err != nil {
+		return fmt.Errorf("error leyendo superbloque: %v", err)
 	}
 
 	// Leer el MBR del disco
@@ -68,14 +75,15 @@ func MoveFileOrDirectory(params *structs.MoveParams) error {
 	defer file.Close()
 
 	// Verificar que el archivo o directorio origen existe
-	sourceInodeNum, err := common.FindFileInodeByPath(file, params.Path, inodePos, blockPos)
+	sourceInodeNum, err := common.FindFileInodeByPath(file, params.Path, superblock, inodePos, blockPos)
 	if err != nil {
 		return fmt.Errorf("el archivo o directorio de origen no existe: %v", err)
 	}
 
 	// Leer el inodo del archivo/directorio origen para verificar permisos
 	sourceInodeBytes := make([]byte, structs.INODE_SIZE)
-	_, err = file.ReadAt(sourceInodeBytes, int64(inodePos+(sourceInodeNum*structs.INODE_SIZE)))
+	sourceInodeOffset := int64(superblock.S_inode_start + (sourceInodeNum * structs.INODE_SIZE))
+	_, err = file.ReadAt(sourceInodeBytes, sourceInodeOffset)
 	if err != nil {
 		return fmt.Errorf("error al leer el inodo del origen: %v", err)
 	}
@@ -93,15 +101,46 @@ func MoveFileOrDirectory(params *structs.MoveParams) error {
 	destDir := filepath.Dir(params.Destino)
 	destBaseName := filepath.Base(params.Destino)
 
-	// Verificar que el directorio de destino existe
-	destDirInodeNum, err := common.FindFileInodeByPath(file, destDir, inodePos, blockPos)
-	if err != nil {
-		return fmt.Errorf("el directorio de destino no existe: %v", err)
+	// Obtener el nombre original del archivo/directorio a mover
+	originalSourceName := filepath.Base(params.Path)
+
+	// Si el destino apunta a un directorio existente, mantener el nombre original
+	// Si el destino especifica un nuevo nombre, usar el nombre especificado
+	destDirInodeNum, err := common.FindFileInodeByPath(file, params.Destino, superblock, inodePos, blockPos)
+	if err == nil {
+		// El destino existe - verificar si es un directorio
+		destInodeBytes := make([]byte, structs.INODE_SIZE)
+		destInodeOffset := int64(superblock.S_inode_start + (destDirInodeNum * structs.INODE_SIZE))
+		_, err = file.ReadAt(destInodeBytes, destInodeOffset)
+		if err == nil {
+			var destInode structs.Inode
+			buffer := bytes.NewReader(destInodeBytes)
+			binary.Read(buffer, binary.LittleEndian, &destInode)
+
+			if destInode.I_type == 1 { // Es un directorio
+				// Mover dentro del directorio manteniendo el nombre original
+				destDir = params.Destino
+				destBaseName = originalSourceName
+				destDirInodeNum, err = common.FindFileInodeByPath(file, destDir, superblock, inodePos, blockPos)
+				if err != nil {
+					return fmt.Errorf("el directorio de destino no existe: %v", err)
+				}
+			}
+		}
+	} else {
+		// El destino no existe - usar el directorio padre y el nombre especificado
+		destDirInodeNum, err = common.FindFileInodeByPath(file, destDir, superblock, inodePos, blockPos)
+		if err != nil {
+			return fmt.Errorf("el directorio de destino no existe: %v", err)
+		}
 	}
+
+	fmt.Printf("DEBUG MOVE: destDir='%s', destBaseName='%s' (calculado)\n", destDir, destBaseName)
 
 	// Leer el inodo del directorio de destino
 	destDirInodeBytes := make([]byte, structs.INODE_SIZE)
-	_, err = file.ReadAt(destDirInodeBytes, int64(inodePos+(destDirInodeNum*structs.INODE_SIZE)))
+	destDirInodeOffset := int64(superblock.S_inode_start + (destDirInodeNum * structs.INODE_SIZE))
+	_, err = file.ReadAt(destDirInodeBytes, destDirInodeOffset)
 	if err != nil {
 		return fmt.Errorf("error al leer el inodo del directorio de destino: %v", err)
 	}
@@ -121,47 +160,65 @@ func MoveFileOrDirectory(params *structs.MoveParams) error {
 	}
 
 	// Verificar que no existe ya un archivo/directorio con el mismo nombre en el destino
-	_, existsInDest := FindFileInDirectoryByInode(file, destBaseName, destDirInodeNum, inodePos, blockPos)
+	fmt.Printf("DEBUG MOVE: Verificando si '%s' ya existe en destino (inodo %d)\n", destBaseName, destDirInodeNum)
+	_, existsInDest := FindFileInDirectoryByInode(file, destBaseName, destDirInodeNum, superblock, inodePos, blockPos)
 	if existsInDest {
+		fmt.Printf("DEBUG MOVE: ERROR - Ya existe '%s' en destino\n", destBaseName)
 		return fmt.Errorf("ya existe un archivo o directorio con el nombre '%s' en el destino", destBaseName)
 	}
+	fmt.Printf("DEBUG MOVE: OK - '%s' no existe en destino, se puede mover\n", destBaseName)
 
 	// Obtener el directorio padre del archivo/directorio origen
 	sourceDir := filepath.Dir(params.Path)
 	sourceBaseName := filepath.Base(params.Path)
+	fmt.Printf("DEBUG MOVE: sourceDir='%s', sourceBaseName='%s'\n", sourceDir, sourceBaseName)
 
 	// Si es el directorio raíz, usar inodo 0
 	var sourceDirInodeNum int32 = 0
 	if sourceDir != "/" {
-		sourceDirInodeNum, err = common.FindFileInodeByPath(file, sourceDir, inodePos, blockPos)
+		fmt.Printf("DEBUG MOVE: Buscando directorio padre origen: '%s'\n", sourceDir)
+		sourceDirInodeNum, err = common.FindFileInodeByPath(file, sourceDir, superblock, inodePos, blockPos)
 		if err != nil {
+			fmt.Printf("DEBUG MOVE: ERROR - No se pudo encontrar directorio padre: %v\n", err)
 			return fmt.Errorf("error al encontrar el directorio padre del origen: %v", err)
 		}
+		fmt.Printf("DEBUG MOVE: Directorio padre origen encontrado, inodo=%d\n", sourceDirInodeNum)
 	}
 
 	// Realizar el movimiento:
 	// 1. Agregar entrada en el directorio de destino
-	err = AddFileToDirectoryWithIndirect(file, destBaseName, sourceInodeNum, destDirInodeNum, inodePos, blockPos, bmBlockPos, blockCount)
+	fmt.Printf("DEBUG MOVE: Fase 1 - Agregando '%s' (inodo %d) al directorio destino %d\n", destBaseName, sourceInodeNum, destDirInodeNum)
+	err = AddFileToDirectoryWithIndirect(file, destBaseName, sourceInodeNum, destDirInodeNum, superblock, inodePos, blockPos, bmBlockPos, blockCount)
 	if err != nil {
+		fmt.Printf("DEBUG MOVE: ERROR - Fallo al agregar al destino: %v\n", err)
 		return fmt.Errorf("error al agregar entrada en el directorio de destino: %v", err)
 	}
+	fmt.Printf("DEBUG MOVE: ¡Éxito! Agregado '%s' al directorio destino\n", destBaseName)
 
 	// 2. Eliminar entrada del directorio origen
-	err = removeFileFromDirectoryManual(file, sourceDirInodeNum, sourceBaseName, inodePos, blockPos)
+	fmt.Printf("DEBUG MOVE: Fase 2 - Eliminando '%s' del directorio origen %d\n", sourceBaseName, sourceDirInodeNum)
+	err = removeFileFromDirectoryManual(file, sourceDirInodeNum, sourceBaseName, superblock, inodePos, blockPos)
 	if err != nil {
+		fmt.Printf("DEBUG MOVE: ERROR - Fallo al eliminar del origen: %v\n", err)
 		// Si falla, intentar revertir eliminando del destino
-		removeFileFromDirectoryManual(file, destDirInodeNum, destBaseName, inodePos, blockPos)
+		removeFileFromDirectoryManual(file, destDirInodeNum, destBaseName, superblock, inodePos, blockPos)
 		return fmt.Errorf("error al eliminar entrada del directorio origen: %v", err)
 	}
+	fmt.Printf("DEBUG MOVE: ¡Éxito! Eliminado '%s' del directorio origen\n", sourceBaseName)
+
+	// Registrar el movimiento en el journal EXT3
+	journaling.LogEXT3Operation(session.ID, "MOVE_FILE_OR_DIRECTORY", params.Path,
+		fmt.Sprintf("Archivo/directorio movido de '%s' a '%s'", params.Path, params.Destino))
 
 	return nil
 }
 
 // Función auxiliar para remover una entrada de directorio de forma manual
-func removeFileFromDirectoryManual(file *os.File, dirInodeNum int32, fileName string, inodePos, blockPos int32) error {
+func removeFileFromDirectoryManual(file *os.File, dirInodeNum int32, fileName string, superblock *structs.Superblock, inodePos, blockPos int32) error {
 	// Leer el inodo del directorio
 	dirInodeBytes := make([]byte, structs.INODE_SIZE)
-	_, err := file.ReadAt(dirInodeBytes, int64(inodePos+(dirInodeNum*structs.INODE_SIZE)))
+	dirInodeOffset := int64(superblock.S_inode_start + (dirInodeNum * structs.INODE_SIZE))
+	_, err := file.ReadAt(dirInodeBytes, dirInodeOffset)
 	if err != nil {
 		return fmt.Errorf("error al leer el inodo del directorio: %v", err)
 	}
@@ -178,7 +235,17 @@ func removeFileFromDirectoryManual(file *os.File, dirInodeNum int32, fileName st
 
 		// Leer el bloque
 		blockData := make([]byte, structs.BLOCK_SIZE)
-		_, err := file.ReadAt(blockData, int64(blockPos+(dirInode.I_block[i]*structs.BLOCK_SIZE)))
+
+		// Calcular la posición del bloque correctamente usando el superblock
+		var blockPosition int32
+		blockNum := dirInode.I_block[i]
+		if superblock.S_block_start == 0 {
+			blockPosition = superblock.S_inode_start + (superblock.S_inodes_count * structs.INODE_SIZE) + (blockNum * structs.BLOCK_SIZE)
+		} else {
+			blockPosition = superblock.S_block_start + (blockNum * structs.BLOCK_SIZE)
+		}
+
+		_, err := file.ReadAt(blockData, int64(blockPosition))
 		if err != nil {
 			continue
 		}
@@ -201,7 +268,7 @@ func removeFileFromDirectoryManual(file *os.File, dirInodeNum int32, fileName st
 				// Escribir el bloque actualizado
 				var buf bytes.Buffer
 				binary.Write(&buf, binary.LittleEndian, &folderBlock)
-				_, err = file.WriteAt(buf.Bytes(), int64(blockPos+(dirInode.I_block[i]*structs.BLOCK_SIZE)))
+				_, err = file.WriteAt(buf.Bytes(), int64(blockPosition))
 				return err
 			}
 		}

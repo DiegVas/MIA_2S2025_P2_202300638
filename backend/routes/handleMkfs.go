@@ -3,6 +3,7 @@ package routes
 import (
 	"fmt"
 	"main/Analyzer"
+	diskmanager "main/diskManager"
 	"main/provider/mounted"
 	"main/structs"
 	"main/utils"
@@ -41,6 +42,8 @@ func handleMkfs(w http.ResponseWriter, command string) {
 	fsMessage := "ext2"
 	if params.FS == "3fs" {
 		fsMessage = "ext3"
+		// Inicializar journaling para EXT3
+		diskmanager.InitializeJournalForEXT3(params.ID)
 	}
 
 	response := structs.Response{

@@ -9,6 +9,7 @@ import (
 	"main/provider/mounted"
 	"main/provider/reports"
 	"main/structs"
+	"main/utils/journaling"
 	"os"
 	"path/filepath"
 )
@@ -100,6 +101,10 @@ func RemoveFileOrDirectory(params *structs.RemoveParams) error {
 	if err != nil {
 		return fmt.Errorf("error actualizando superbloque: %v", err)
 	}
+
+	// Registrar la eliminación en el journal EXT3
+	journaling.LogEXT3Operation(session.ID, "REMOVE_FILE_OR_DIRECTORY", params.Path,
+		fmt.Sprintf("Archivo/directorio '%s' eliminado exitosamente", params.Path))
 
 	return nil
 }

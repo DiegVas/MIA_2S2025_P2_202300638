@@ -11,7 +11,7 @@ import (
 )
 
 func createFileInFilesystem(file *os.File, path, content string, size int32, session *structs.Session,
-	inodePos, blockPos, bmInodePos, bmBlockPos, inodeCount, blockCount int32, createParents bool) error {
+	superblock *structs.Superblock, inodePos, blockPos, bmInodePos, bmBlockPos, inodeCount, blockCount int32, createParents bool) error {
 
 	// ? Normalizar el path
 	path = strings.TrimPrefix(path, "/")
@@ -25,7 +25,7 @@ func createFileInFilesystem(file *os.File, path, content string, size int32, ses
 	dirPath := strings.Join(pathComponents[:len(pathComponents)-1], "/")
 
 	//  ? Encontrar o crear el directorio padre
-	parentInodeNum, err := FindOrCreateParentDirectory(file, dirPath, session,
+	parentInodeNum, err := FindOrCreateParentDirectory(file, dirPath, session, superblock,
 		inodePos, blockPos, bmInodePos, bmBlockPos, inodeCount, blockCount, createParents)
 	if err != nil {
 		return err
@@ -37,7 +37,7 @@ func createFileInFilesystem(file *os.File, path, content string, size int32, ses
 	}
 
 	// ! Verificar si el archivo ya existe
-	_, exists := FindFileInDirectoryByInode(file, fileName, parentInodeNum, inodePos, blockPos)
+	_, exists := FindFileInDirectoryByInode(file, fileName, parentInodeNum, superblock, inodePos, blockPos)
 	if exists {
 		return fmt.Errorf("el archivo '%s' ya existe", fileName)
 	}
@@ -56,7 +56,7 @@ func createFileInFilesystem(file *os.File, path, content string, size int32, ses
 	}
 
 	// ? Crear el archivo
-	err = CreateNewFile(file, fileName, content, size, currentUser, parentInodeNum,
+	err = CreateNewFile(file, fileName, content, size, currentUser, parentInodeNum, superblock,
 		inodePos, blockPos, bmInodePos, bmBlockPos, inodeCount, blockCount)
 	if err != nil {
 		return err

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"main/provider/mounted"
 	"main/structs"
+	"main/utils/journaling"
 	"strings"
 )
 
@@ -77,5 +78,10 @@ func ChangeUserGroup(params *structs.ChgrpParams) error {
 	if err != nil {
 		return fmt.Errorf("error al escribir el archivo de usuarios: %v", err)
 	}
+
+	// Registrar el cambio de grupo en el journal EXT3
+	journaling.LogEXT3Operation(session.ID, "CHANGE_USER_GROUP", "/users.txt",
+		fmt.Sprintf("Usuario '%s' cambiado al grupo '%s'", params.User, params.Grp))
+
 	return nil
 }

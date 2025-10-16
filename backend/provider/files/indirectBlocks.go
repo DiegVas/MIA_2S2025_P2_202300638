@@ -4,17 +4,21 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"main/structs"
 	"os"
+	"strings"
 )
 
 // AddFileToDirectoryWithIndirect maneja bloques indirectos cuando los directos están llenos
-func AddFileToDirectoryWithIndirect(file *os.File, fileName string, fileInodeNum, dirInodeNum,
+func AddFileToDirectoryWithIndirect(file *os.File, fileName string, fileInodeNum, dirInodeNum int32, superblock *structs.Superblock,
 	inodePos, blockPos, bmBlockPos, blockCount int32) error {
 
-	// Leer el inodo del directorio
+	fmt.Printf("DEBUG AddFileToDirectoryWithIndirect: Añadiendo '%s' (inodo %d) al directorio %d\n", fileName, fileInodeNum, dirInodeNum)
+
+	// Leer el inodo del directorio usando superblock.S_inode_start
 	inodeBytes := make([]byte, structs.INODE_SIZE)
-	inodeOffset := int64(inodePos + (dirInodeNum * structs.INODE_SIZE))
+	inodeOffset := int64(superblock.S_inode_start + (dirInodeNum * structs.INODE_SIZE))
 
 	_, err := file.ReadAt(inodeBytes, inodeOffset)
 	if err != nil {
@@ -31,14 +35,18 @@ func AddFileToDirectoryWithIndirect(file *os.File, fileName string, fileInodeNum
 	}
 
 	// 1. FASE 1: Buscar en bloques directos (0-11)
-	found, err := addToDirectBlocks(file, fileName, fileInodeNum, &dirInode, dirInodeNum, blockPos, bmBlockPos, blockCount)
+	fmt.Printf("DEBUG AddFileToDirectoryWithIndirect: Fase 1 - Buscando en bloques directos\n")
+	found, err := addToDirectBlocks(file, fileName, fileInodeNum, &dirInode, dirInodeNum, superblock, bmBlockPos, blockCount)
 	if err != nil {
+		fmt.Printf("DEBUG AddFileToDirectoryWithIndirect: Error en bloques directos: %v\n", err)
 		return err
 	}
 	if found {
-		// Actualizar el inodo
-		return updateDirectoryInode(file, &dirInode, dirInodeNum, inodePos)
+		fmt.Printf("DEBUG AddFileToDirectoryWithIndirect: ¡Añadido en bloques directos!\n")
+		// Actualizar el inodo usando superblock.S_inode_start
+		return updateDirectoryInode(file, &dirInode, dirInodeNum, superblock.S_inode_start)
 	}
+	fmt.Printf("DEBUG AddFileToDirectoryWithIndirect: No se pudo añadir en bloques directos\n")
 
 	// 2. FASE 2: Buscar en bloque indirecto simple (slot 12)
 	found, err = addToIndirectBlock(file, fileName, fileInodeNum, &dirInode, 12, blockPos, bmBlockPos, blockCount)
@@ -46,7 +54,7 @@ func AddFileToDirectoryWithIndirect(file *os.File, fileName string, fileInodeNum
 		return err
 	}
 	if found {
-		return updateDirectoryInode(file, &dirInode, dirInodeNum, inodePos)
+		return updateDirectoryInode(file, &dirInode, dirInodeNum, superblock.S_inode_start)
 	}
 
 	// 3. FASE 3: Buscar en bloque doblemente indirecto (slot 13)
@@ -55,7 +63,7 @@ func AddFileToDirectoryWithIndirect(file *os.File, fileName string, fileInodeNum
 		return err
 	}
 	if found {
-		return updateDirectoryInode(file, &dirInode, dirInodeNum, inodePos)
+		return updateDirectoryInode(file, &dirInode, dirInodeNum, superblock.S_inode_start)
 	}
 
 	// 4. FASE 4: Buscar en bloque triplemente indirecto (slot 14)
@@ -64,7 +72,7 @@ func AddFileToDirectoryWithIndirect(file *os.File, fileName string, fileInodeNum
 		return err
 	}
 	if found {
-		return updateDirectoryInode(file, &dirInode, dirInodeNum, inodePos)
+		return updateDirectoryInode(file, &dirInode, dirInodeNum, superblock.S_inode_start)
 	}
 
 	return errors.New("directorio completamente lleno - no se puede agregar más entradas")
@@ -72,30 +80,51 @@ func AddFileToDirectoryWithIndirect(file *os.File, fileName string, fileInodeNum
 
 // addToDirectBlocks busca espacio en los primeros 12 bloques directos
 func addToDirectBlocks(file *os.File, fileName string, fileInodeNum int32,
-	dirInode *structs.Inode, dirInodeNum, blockPos, bmBlockPos, blockCount int32) (bool, error) {
+	dirInode *structs.Inode, dirInodeNum int32, superblock *structs.Superblock, bmBlockPos, blockCount int32) (bool, error) {
 
+	fmt.Printf("DEBUG addToDirectBlocks: Revisando bloques directos para directorio %d\n", dirInodeNum)
 	for i := 0; i < 12; i++ {
+		fmt.Printf("DEBUG addToDirectBlocks: Slot %d, bloque=%d\n", i, dirInode.I_block[i])
 
 		// CASO ESPECIAL: Para el directorio raíz, el slot 0 con bloque 0 es válido
 		isRootSpecialCase := (dirInodeNum == 0 && i == 0 && dirInode.I_block[i] == 0)
 
 		if dirInode.I_block[i] != 0 || isRootSpecialCase {
 			blockNum := dirInode.I_block[i]
+			fmt.Printf("DEBUG addToDirectBlocks: Slot %d ocupado, bloque=%d\n", i, blockNum)
 
 			// Verificar si hay espacio en este bloque existente
+			var blockPos int32
+			if superblock.S_block_start == 0 {
+				blockPos = superblock.S_inode_start + (superblock.S_inodes_count * structs.INODE_SIZE)
+			} else {
+				blockPos = superblock.S_block_start
+			}
 			found, err := addToExistingBlock(file, fileName, fileInodeNum, blockNum, blockPos)
 			if err != nil {
+				fmt.Printf("DEBUG addToDirectBlocks: Error en bloque existente %d: %v\n", blockNum, err)
 				continue
 			}
 			if found {
+				fmt.Printf("DEBUG addToDirectBlocks: ¡Añadido a bloque existente %d!\n", blockNum)
 				return true, nil
 			}
+			fmt.Printf("DEBUG addToDirectBlocks: Bloque %d está lleno\n", blockNum)
 		} else {
+			fmt.Printf("DEBUG addToDirectBlocks: Slot %d libre, creando nuevo bloque\n", i)
 			// Slot libre - crear nuevo bloque
+			var blockPos int32
+			if superblock.S_block_start == 0 {
+				blockPos = superblock.S_inode_start + (superblock.S_inodes_count * structs.INODE_SIZE)
+			} else {
+				blockPos = superblock.S_block_start
+			}
 			newBlockNum, err := createNewFolderBlockWithData(file, fileName, fileInodeNum, blockPos, bmBlockPos, blockCount)
 			if err != nil {
+				fmt.Printf("DEBUG addToDirectBlocks: Error creando nuevo bloque: %v\n", err)
 				return false, err
 			}
+			fmt.Printf("DEBUG addToDirectBlocks: ¡Nuevo bloque creado! Bloque=%d\n", newBlockNum)
 			dirInode.I_block[i] = newBlockNum
 			return true, nil
 		}
@@ -316,9 +345,18 @@ func searchInSecondLevelBlock(file *os.File, fileName string, fileInodeNum, seco
 
 // Funciones auxiliares
 func addToExistingBlock(file *os.File, fileName string, fileInodeNum, blockNum, blockPos int32) (bool, error) {
+	fmt.Printf("DEBUG addToExistingBlock: Intentando añadir '%s' (inodo %d) al bloque %d\n", fileName, fileInodeNum, blockNum)
+
 	blockBytes := make([]byte, structs.BLOCK_SIZE)
-	_, err := file.ReadAt(blockBytes, int64(blockPos+(blockNum*structs.BLOCK_SIZE)))
+
+	// TEMPORAL: usar blockPos tal como viene por ahora
+	// TODO: Esta función debería recibir el superblock para calcular correctamente
+	blockPosition := int64(blockPos + (blockNum * structs.BLOCK_SIZE))
+
+	fmt.Printf("DEBUG addToExistingBlock: Leyendo bloque %d en posición %d\n", blockNum, blockPosition)
+	_, err := file.ReadAt(blockBytes, blockPosition)
 	if err != nil {
+		fmt.Printf("DEBUG addToExistingBlock: Error leyendo bloque: %v\n", err)
 		return false, err
 	}
 
@@ -326,18 +364,29 @@ func addToExistingBlock(file *os.File, fileName string, fileInodeNum, blockNum, 
 	buffer := bytes.NewReader(blockBytes)
 	binary.Read(buffer, binary.LittleEndian, &folderBlock)
 
+	fmt.Printf("DEBUG addToExistingBlock: Revisando entradas en bloque %d\n", blockNum)
 	for j := range folderBlock.B_content {
-		entryName := string(folderBlock.B_content[j].B_name[:])
-		if entryName == "" || entryName[0] == 0 {
+		entryName := strings.TrimRight(string(folderBlock.B_content[j].B_name[:]), "\x00")
+		fmt.Printf("DEBUG addToExistingBlock: Entrada %d: nombre='%s', inodo=%d\n", j, entryName, folderBlock.B_content[j].B_inodo)
+
+		if entryName == "" || folderBlock.B_content[j].B_inodo == 0 {
+			fmt.Printf("DEBUG addToExistingBlock: Encontrado slot libre en posición %d\n", j)
 			copy(folderBlock.B_content[j].B_name[:], fileName)
 			folderBlock.B_content[j].B_inodo = fileInodeNum
 
 			var folderBuffer bytes.Buffer
 			binary.Write(&folderBuffer, binary.LittleEndian, folderBlock)
-			_, err = file.WriteAt(folderBuffer.Bytes(), int64(blockPos+(blockNum*structs.BLOCK_SIZE)))
-			return true, err
+			_, err = file.WriteAt(folderBuffer.Bytes(), int64(blockPosition))
+			if err != nil {
+				fmt.Printf("DEBUG addToExistingBlock: Error escribiendo bloque: %v\n", err)
+				return false, err
+			}
+			fmt.Printf("DEBUG addToExistingBlock: ¡Éxito! Añadido '%s' en slot %d del bloque %d\n", fileName, j, blockNum)
+			return true, nil
 		}
 	}
+
+	fmt.Printf("DEBUG addToExistingBlock: Bloque %d está lleno\n", blockNum)
 	return false, nil
 }
 

@@ -14,6 +14,7 @@ import (
 	"main/provider/reports"
 	"main/provider/users"
 	"main/structs"
+	"main/utils/journaling"
 )
 
 func RenameFile(params *structs.RenameFileParams) error {
@@ -28,6 +29,12 @@ func RenameFile(params *structs.RenameFileParams) error {
 	partition, found := mountManager.GetMountedPartition(session.ID)
 	if !found {
 		return fmt.Errorf("no hay ninguna partición montada para esta sesión")
+	}
+
+	// Leer el superbloque
+	superblock, err := common.ReadSuperblock(partition.Path, session.ID)
+	if err != nil {
+		return fmt.Errorf("error leyendo superbloque: %v", err)
 	}
 
 	// Leer el MBR del disco
@@ -70,7 +77,7 @@ func RenameFile(params *structs.RenameFileParams) error {
 	}
 	defer file.Close()
 
-	inodeNum, err := common.FindFileInodeByPath(file, params.Path, inodePos, blockPos)
+	inodeNum, err := common.FindFileInodeByPath(file, params.Path, superblock, inodePos, blockPos)
 	if err != nil {
 		return fmt.Errorf("error al encontrar el inode del archivo: %v", err)
 	}
@@ -106,17 +113,19 @@ func RenameFile(params *structs.RenameFileParams) error {
 	now := time.Now()
 	inode.I_mtime = FormatTimeToBytes(now)
 
-	// Leer el superbloque
-	superblock, err := common.ReadSuperblock(partition.Path, partition.ID)
+	// Leer el superbloque (ya declarado arriba)
+	superblock2, err := common.ReadSuperblock(partition.Path, partition.ID)
 	if err != nil {
 		return fmt.Errorf("error leyendo superbloque: %v", err)
 	}
+	// Usar superblock2 para no conflicto
+	_ = superblock2
 
 	// Obtener el directorio padre
 	parentPath := GetParentPath(params.Path)
 	fileName := GetLastComponent(params.Path)
 
-	parentInodeNum, err := common.FindFileInodeByPath(file, parentPath, inodePos, blockPos)
+	parentInodeNum, err := common.FindFileInodeByPath(file, parentPath, superblock, inodePos, blockPos)
 	if err != nil {
 		return fmt.Errorf("error al encontrar el inode del directorio padre: %v", err)
 	}
@@ -214,6 +223,10 @@ func RenameFile(params *structs.RenameFileParams) error {
 	if !updated {
 		return fmt.Errorf("no se pudo encontrar la entrada del archivo '%s' en el directorio padre para actualizar", fileName)
 	}
+
+	// Registrar el renombrado en el journal EXT3
+	journaling.LogEXT3Operation(session.ID, "RENAME_FILE", params.Path,
+		fmt.Sprintf("Archivo/directorio renombrado de '%s' a '%s'", params.Path, params.NewName))
 
 	return nil
 }

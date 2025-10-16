@@ -5,18 +5,19 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	diskmanager "main/diskManager"
+	diskio "main/diskManager"
 	"main/provider/common"
 	"main/provider/mounted"
 	"main/provider/users"
 	"main/structs"
+	"main/utils/journaling"
 	"os"
 	"strings"
 	"time"
 	"unsafe"
 )
 
-func FindOrCreateParentDirectory(file *os.File, dirPath string, session *structs.Session,
+func FindOrCreateParentDirectory(file *os.File, dirPath string, session *structs.Session, superblock *structs.Superblock,
 	inodePos, blockPos, bmInodePos, bmBlockPos, inodeCount, blockCount int32, createParents bool) (int32, error) {
 
 	fmt.Printf("DEBUG FindOrCreateParentDirectory: dirPath='%s', createParents=%t\n", dirPath, createParents)
@@ -40,7 +41,7 @@ func FindOrCreateParentDirectory(file *os.File, dirPath string, session *structs
 		fmt.Printf("DEBUG FindOrCreateParentDirectory: Procesando componente %d: '%s', inodo actual: %d\n", i, component, currentInodeNum)
 
 		// ? Buscar el directorio en el inodo actual
-		nextInodeNum, exists := FindFileInDirectoryByInode(file, component, currentInodeNum, inodePos, blockPos)
+		nextInodeNum, exists := FindFileInDirectoryByInode(file, component, currentInodeNum, superblock, inodePos, blockPos)
 
 		if !exists {
 			fmt.Printf("DEBUG FindOrCreateParentDirectory: Componente '%s' no existe en inodo %d\n", component, currentInodeNum)
@@ -65,12 +66,19 @@ func FindOrCreateParentDirectory(file *os.File, dirPath string, session *structs
 				return -1, fmt.Errorf("error al obtener información del usuario: %v", err)
 			}
 
-			nextInodeNum, err = CreateNewDirectory(file, component, currentUser, currentInodeNum,
+			nextInodeNum, err = CreateNewDirectory(file, component, currentUser, currentInodeNum, superblock,
 				inodePos, blockPos, bmInodePos, bmBlockPos, inodeCount, blockCount)
 			if err != nil {
 				fmt.Printf("DEBUG FIND_OR_CREATE: Error creando directorio '%s': %v\n", component, err)
 				return -1, fmt.Errorf("error al crear directorio '%s': %v", component, err)
 			}
+
+			// Construir la ruta completa hasta este directorio
+			fullPath := buildPathToComponent(components, i)
+
+			// Registrar la creación del directorio padre en el journal EXT3
+			journaling.LogEXT3Operation(session.ID, "CREATE_PARENT_DIRECTORY", fullPath,
+				fmt.Sprintf("Directorio padre '%s' creado con permisos 755 (mkdir -p)", component))
 
 		} else {
 			fmt.Printf("DEBUG FindOrCreateParentDirectory: Componente '%s' encontrado en inodo %d\n", component, nextInodeNum)
@@ -84,14 +92,14 @@ func FindOrCreateParentDirectory(file *os.File, dirPath string, session *structs
 	return currentInodeNum, nil
 }
 
-func FindFileInDirectoryByInode(file *os.File, name string, dirInodeNum, inodePos, blockPos int32) (int32, bool) {
+func FindFileInDirectoryByInode(file *os.File, name string, dirInodeNum int32, superblock *structs.Superblock, inodePos, blockPos int32) (int32, bool) {
 	fmt.Printf("DEBUG FindFileInDirectoryByInode: Buscando '%s' en inodo %d\n", name, dirInodeNum)
 	fmt.Printf("DEBUG FindFileInDirectoryByInode: inodePos=%d, blockPos=%d\n", inodePos, blockPos)
 
 	// ? Leer el inodo del directorio
 	inodeBytes := make([]byte, structs.INODE_SIZE)
-	inodePosition := int64(inodePos + (dirInodeNum * structs.INODE_SIZE))
-	fmt.Printf("DEBUG FindFileInDirectoryByInode: Leyendo inodo en posición %d\n", inodePosition)
+	inodePosition := int64(superblock.S_inode_start + (dirInodeNum * structs.INODE_SIZE))
+	fmt.Printf("DEBUG FindFileInDirectoryByInode: Leyendo inodo en posición %d (S_inode_start=%d)\n", inodePosition, superblock.S_inode_start)
 	_, err := file.ReadAt(inodeBytes, inodePosition)
 	if err != nil {
 		fmt.Printf("DEBUG FindFileInDirectoryByInode: Error leyendo inodo: %v\n", err)
@@ -122,9 +130,16 @@ func FindFileInDirectoryByInode(file *os.File, name string, dirInodeNum, inodePo
 			fmt.Printf("DEBUG FindFileInDirectoryByInode: Procesando bloque %d (blockNum=%d)\n", i, blockNum)
 
 			blockBytes := make([]byte, structs.BLOCK_SIZE)
-			blockPosition := int64(blockPos + (blockNum * structs.BLOCK_SIZE))
-			fmt.Printf("DEBUG FindFileInDirectoryByInode: Leyendo bloque en posición %d\n", blockPosition)
-			_, err = file.ReadAt(blockBytes, blockPosition)
+			// Usar la misma lógica que findFileInDirectory
+			var blockPosition int32
+			if superblock.S_block_start == 0 {
+				// Calcular: inode_start + (inodes_count * inode_size) + (blockNum * block_size)
+				blockPosition = superblock.S_inode_start + (superblock.S_inodes_count * structs.INODE_SIZE) + (blockNum * structs.BLOCK_SIZE)
+			} else {
+				blockPosition = superblock.S_block_start + (blockNum * structs.BLOCK_SIZE)
+			}
+			fmt.Printf("DEBUG FindFileInDirectoryByInode: Leyendo bloque en posición %d (S_block_start=%d)\n", blockPosition, superblock.S_block_start)
+			_, err = file.ReadAt(blockBytes, int64(blockPosition))
 			if err != nil {
 				fmt.Printf("DEBUG FindFileInDirectoryByInode: Error leyendo bloque %d: %v\n", i, err)
 				continue
@@ -153,7 +168,7 @@ func FindFileInDirectoryByInode(file *os.File, name string, dirInodeNum, inodePo
 	return -1, false
 }
 
-func CreateNewDirectory(file *os.File, dirName string, user *structs.User, parentInodeNum,
+func CreateNewDirectory(file *os.File, dirName string, user *structs.User, parentInodeNum int32, superblock *structs.Superblock,
 	inodePos, blockPos, bmInodePos, bmBlockPos, inodeCount, blockCount int32) (int32, error) {
 
 	// Encontrar un inodo libre
@@ -223,7 +238,7 @@ func CreateNewDirectory(file *os.File, dirName string, user *structs.User, paren
 	}
 
 	// Agregar la entrada al directorio padre
-	err = AddFileToDirectoryWithIndirect(file, dirName, freeInodeNum, parentInodeNum, inodePos, blockPos, bmBlockPos, blockCount)
+	err = AddFileToDirectoryWithIndirect(file, dirName, freeInodeNum, parentInodeNum, superblock, inodePos, blockPos, bmBlockPos, blockCount)
 	if err != nil {
 		return -1, err
 	}
@@ -231,10 +246,10 @@ func CreateNewDirectory(file *os.File, dirName string, user *structs.User, paren
 	return freeInodeNum, nil
 }
 
-func AddFileToDirectory(file *os.File, fileName string, fileInodeNum, dirInodeNum, inodePos, blockPos, bmBlockPos, blockCount int32) error {
+func AddFileToDirectory(file *os.File, fileName string, fileInodeNum, dirInodeNum int32, superblock *structs.Superblock, inodePos, blockPos, bmBlockPos, blockCount int32) error {
 	// Usar la nueva implementación con soporte para bloques indirectos
 	// Esta función mantiene compatibilidad con código existente
-	return AddFileToDirectoryWithIndirect(file, fileName, fileInodeNum, dirInodeNum, inodePos, blockPos, bmBlockPos, blockCount)
+	return AddFileToDirectoryWithIndirect(file, fileName, fileInodeNum, dirInodeNum, superblock, inodePos, blockPos, bmBlockPos, blockCount)
 }
 
 // AddFileToDirectoryLegacy es la implementación original (solo bloques directos)
@@ -335,7 +350,7 @@ func CreateDirectory(params *structs.MkdirParams) error {
 		return errors.New("no hay ninguna partición montada para esta sesión")
 	}
 
-	mbr, err := diskmanager.ReadMBR(partition.Path)
+	mbr, err := diskio.ReadMBR(partition.Path)
 	if err != nil {
 		return fmt.Errorf("error al leer el MBR del disco: %v", err)
 	}
@@ -403,11 +418,16 @@ func CreateDirectory(params *structs.MkdirParams) error {
 
 	// Si el parámetro -p está presente, crear directorios padre
 	if params.P {
-		_, err = FindOrCreateParentDirectory(diskFile, params.Path, session,
+		_, err = FindOrCreateParentDirectory(diskFile, params.Path, session, &superblock,
 			inodePos, blockPos, bmInodePos, bmBlockPos, inodeCount, blockCount, true)
 		if err != nil {
 			return fmt.Errorf("error al crear directorios padre: %v", err)
 		}
+
+		// Registrar la operación final (directorio objetivo) en el journal EXT3
+		journaling.LogEXT3Operation(session.ID, "CREATE_DIRECTORY_WITH_PARENTS", params.Path,
+			fmt.Sprintf("Directorio objetivo '%s' creado con mkdir -p (incluyendo padres)", params.Path))
+
 		return nil
 	}
 
@@ -416,7 +436,7 @@ func CreateDirectory(params *structs.MkdirParams) error {
 	dirName := GetLastComponent(params.Path)
 
 	// Buscar el inodo del directorio padre
-	parentInodeNum, err := common.FindFileInodeByPath(diskFile, parentPath, inodePos, blockPos)
+	parentInodeNum, err := common.FindFileInodeByPath(diskFile, parentPath, &superblock, inodePos, blockPos)
 	if err != nil {
 		fmt.Printf("DEBUG MKDIR: Error buscando directorio padre: %v\n", err)
 		return fmt.Errorf("el directorio padre no existe: %v", err)
@@ -428,11 +448,15 @@ func CreateDirectory(params *structs.MkdirParams) error {
 		return fmt.Errorf("error al obtener información del usuario: %v", err)
 	}
 
-	_, err = CreateNewDirectory(diskFile, dirName, currentUser, parentInodeNum,
+	_, err = CreateNewDirectory(diskFile, dirName, currentUser, parentInodeNum, &superblock,
 		inodePos, blockPos, bmInodePos, bmBlockPos, inodeCount, blockCount)
 	if err != nil {
 		return fmt.Errorf("error al crear el directorio: %v", err)
 	}
+
+	// Registrar la operación en el journal EXT3
+	journaling.LogEXT3Operation(session.ID, "CREATE_DIRECTORY", params.Path,
+		fmt.Sprintf("Directorio '%s' creado sin -p con permisos 755", dirName))
 
 	return nil
 }
@@ -477,4 +501,24 @@ func GetLastComponent(path string) string {
 
 	result := parts[len(parts)-1]
 	return result
+}
+
+// buildPathToComponent construye la ruta completa hasta el componente especificado
+func buildPathToComponent(components []string, index int) string {
+	if index < 0 || index >= len(components) {
+		return "/"
+	}
+
+	var pathParts []string
+	for i := 0; i <= index; i++ {
+		if components[i] != "" {
+			pathParts = append(pathParts, components[i])
+		}
+	}
+
+	if len(pathParts) == 0 {
+		return "/"
+	}
+
+	return "/" + strings.Join(pathParts, "/")
 }

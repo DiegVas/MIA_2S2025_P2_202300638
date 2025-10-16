@@ -108,7 +108,7 @@ func ReadFileContent(filePath string, idPartition string) (string, error) {
 		superblock.S_inode_start, superblock.S_block_start)
 
 	// Navegar por el path y encontrar el archivo
-	inodeNum, err := FindFileInodeByPath(file, filePath, inodePos, blockPos)
+	inodeNum, err := FindFileInodeByPath(file, filePath, &superblock, inodePos, blockPos)
 	if err != nil {
 		return "", err
 	}

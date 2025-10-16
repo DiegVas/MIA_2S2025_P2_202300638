@@ -10,11 +10,12 @@ import (
 	"strings"
 	"time"
 
-	diskmanager "main/diskManager"
+	diskio "main/diskManager"
 	"main/provider/common"
 	"main/provider/mounted"
 	"main/provider/users"
 	"main/structs"
+	"main/utils/journaling"
 )
 
 // EditFile edita el contenido de un archivo existente
@@ -32,8 +33,14 @@ func EditFile(params *structs.EditParams) error {
 		return errors.New("no hay ninguna partición montada para esta sesión")
 	}
 
+	// Leer el superbloque
+	superblock, err := common.ReadSuperblock(partition.Path, session.ID)
+	if err != nil {
+		return fmt.Errorf("error leyendo superbloque: %v", err)
+	}
+
 	// Leer el MBR del disco
-	mbr, err := diskmanager.ReadMBR(partition.Path)
+	mbr, err := diskio.ReadMBR(partition.Path)
 	if err != nil {
 		return fmt.Errorf("error al leer el MBR del disco: %v", err)
 	}
@@ -73,7 +80,7 @@ func EditFile(params *structs.EditParams) error {
 	defer file.Close()
 
 	// Buscar el inodo del archivo a editar
-	inodeNum, err := common.FindFileInodeByPath(file, params.Path, inodePos, blockPos)
+	inodeNum, err := common.FindFileInodeByPath(file, params.Path, superblock, inodePos, blockPos)
 	if err != nil {
 		return fmt.Errorf("archivo no encontrado: %v", err)
 	}
@@ -161,6 +168,10 @@ func EditFile(params *structs.EditParams) error {
 	if err != nil {
 		return fmt.Errorf("error al escribir el nuevo contenido: %v", err)
 	}
+
+	// Registrar la operación en el journal EXT3
+	journaling.LogEXT3Operation(session.ID, "EDIT_FILE", params.Path,
+		fmt.Sprintf("Archivo editado - nuevo tamaño: %d bytes", len(newContentStr)))
 
 	return nil
 }

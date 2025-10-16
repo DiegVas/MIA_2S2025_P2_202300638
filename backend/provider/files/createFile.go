@@ -6,10 +6,11 @@ import (
 	"os"
 	"strings"
 
-	diskmanager "main/diskManager"
+	diskio "main/diskManager"
 	"main/provider/common"
 	"main/provider/mounted"
 	"main/structs"
+	"main/utils/journaling"
 )
 
 func CreateFile(params *structs.MkfileParams) error {
@@ -25,7 +26,7 @@ func CreateFile(params *structs.MkfileParams) error {
 		return errors.New("no hay ninguna partición montada para esta sesión")
 	}
 
-	mbr, err := diskmanager.ReadMBR(partition.Path)
+	mbr, err := diskio.ReadMBR(partition.Path)
 	if err != nil {
 		return fmt.Errorf("error al leer el MBR del disco: %v", err)
 	}
@@ -53,6 +54,12 @@ func CreateFile(params *structs.MkfileParams) error {
 	}
 	defer file.Close()
 
+	// Leer el superbloque
+	superblock, err := common.ReadSuperblock(partition.Path, session.ID)
+	if err != nil {
+		return fmt.Errorf("error leyendo superbloque: %v", err)
+	}
+
 	// Detectar el tipo de sistema de archivos y obtener posiciones
 	startPosition := targetPartition.Part_start
 	positions, err := common.GetFilesystemPositions(file, startPosition)
@@ -78,11 +85,15 @@ func CreateFile(params *structs.MkfileParams) error {
 	}
 
 	// ? Verificar y crear el archivo
-	err = createFileInFilesystem(file, params.Path, content, contentSize, session,
+	err = createFileInFilesystem(file, params.Path, content, contentSize, session, superblock,
 		inodePos, blockPos, bmInodePos, bmBlockPos, inodeCount, blockCount, params.R)
 	if err != nil {
 		return err
 	}
+
+	// Registrar la operación en el journal EXT3
+	journaling.LogEXT3Operation(session.ID, "CREATE_FILE", params.Path,
+		fmt.Sprintf("Archivo creado con tamaño %d bytes", contentSize))
 
 	return nil
 }

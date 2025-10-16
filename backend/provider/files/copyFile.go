@@ -12,6 +12,7 @@ import (
 	"main/provider/common"
 	"main/provider/mounted"
 	"main/structs"
+	"main/utils/journaling"
 )
 
 func CopyFileOrDirectory(params *structs.MoveParams) error {
@@ -26,6 +27,12 @@ func CopyFileOrDirectory(params *structs.MoveParams) error {
 	partition, found := mountManager.GetMountedPartition(session.ID)
 	if !found {
 		return fmt.Errorf("no hay ninguna partición montada para esta sesión")
+	}
+
+	// Leer el superbloque
+	superblock, err := common.ReadSuperblock(partition.Path, session.ID)
+	if err != nil {
+		return fmt.Errorf("error leyendo superbloque: %v", err)
 	}
 
 	// Leer el MBR del disco
@@ -68,14 +75,15 @@ func CopyFileOrDirectory(params *structs.MoveParams) error {
 	defer file.Close()
 
 	// Verificar que el archivo o directorio origen existe
-	sourceInodeNum, err := common.FindFileInodeByPath(file, params.Path, inodePos, blockPos)
+	sourceInodeNum, err := common.FindFileInodeByPath(file, params.Path, superblock, inodePos, blockPos)
 	if err != nil {
 		return fmt.Errorf("el archivo o directorio de origen no existe: %v", err)
 	}
 
 	// Leer el inodo del archivo/directorio origen para verificar permisos
 	sourceInodeBytes := make([]byte, structs.INODE_SIZE)
-	_, err = file.ReadAt(sourceInodeBytes, int64(inodePos+(sourceInodeNum*structs.INODE_SIZE)))
+	sourceInodeOffset := int64(superblock.S_inode_start + (sourceInodeNum * structs.INODE_SIZE))
+	_, err = file.ReadAt(sourceInodeBytes, sourceInodeOffset)
 	if err != nil {
 		return fmt.Errorf("error al leer el inodo del origen: %v", err)
 	}
@@ -94,14 +102,15 @@ func CopyFileOrDirectory(params *structs.MoveParams) error {
 	destBaseName := filepath.Base(params.Destino)
 
 	// Verificar que el directorio de destino existe
-	destDirInodeNum, err := common.FindFileInodeByPath(file, destDir, inodePos, blockPos)
+	destDirInodeNum, err := common.FindFileInodeByPath(file, destDir, superblock, inodePos, blockPos)
 	if err != nil {
 		return fmt.Errorf("el directorio de destino no existe: %v", err)
 	}
 
 	// Leer el inodo del directorio de destino
 	destDirInodeBytes := make([]byte, structs.INODE_SIZE)
-	_, err = file.ReadAt(destDirInodeBytes, int64(inodePos+(destDirInodeNum*structs.INODE_SIZE)))
+	destDirInodeOffset := int64(superblock.S_inode_start + (destDirInodeNum * structs.INODE_SIZE))
+	_, err = file.ReadAt(destDirInodeBytes, destDirInodeOffset)
 	if err != nil {
 		return fmt.Errorf("error al leer el inodo del directorio de destino: %v", err)
 	}
@@ -121,17 +130,21 @@ func CopyFileOrDirectory(params *structs.MoveParams) error {
 	}
 
 	// Verificar que no existe ya un archivo/directorio con el mismo nombre en el destino
-	_, existsInDest := FindFileInDirectoryByInode(file, destBaseName, destDirInodeNum, inodePos, blockPos)
+	_, existsInDest := FindFileInDirectoryByInode(file, destBaseName, destDirInodeNum, superblock, inodePos, blockPos)
 	if existsInDest {
 		return fmt.Errorf("ya existe un archivo o directorio con el nombre '%s' en el destino", destBaseName)
 	}
 
 	// Realizar la copia del archivo o directorio:
 	// 1. Agregar entrada en el directorio de destino
-	err = AddFileToDirectoryWithIndirect(file, destBaseName, sourceInodeNum, destDirInodeNum, inodePos, blockPos, bmBlockPos, blockCount)
+	err = AddFileToDirectoryWithIndirect(file, destBaseName, sourceInodeNum, destDirInodeNum, superblock, inodePos, blockPos, bmBlockPos, blockCount)
 	if err != nil {
 		return fmt.Errorf("error al agregar entrada en el directorio de destino: %v", err)
 	}
+
+	// Registrar la copia en el journal EXT3
+	journaling.LogEXT3Operation(session.ID, "COPY_FILE_OR_DIRECTORY", params.Path,
+		fmt.Sprintf("Archivo/directorio copiado de '%s' a '%s'", params.Path, params.Destino))
 
 	return nil
 }

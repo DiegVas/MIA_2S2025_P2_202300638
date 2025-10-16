@@ -10,7 +10,7 @@ import (
 )
 
 func CreateNewFile(file *os.File, fileName, content string, size int32, user *structs.User,
-	parentInodeNum, inodePos, blockPos, bmInodePos, bmBlockPos, inodeCount, blockCount int32) error {
+	parentInodeNum int32, superblock *structs.Superblock, inodePos, blockPos, bmInodePos, bmBlockPos, inodeCount, blockCount int32) error {
 
 	// ! Encontrar un inodo libre
 	freeInodeNum, err := FindFreeInode(file, bmInodePos, inodeCount)
@@ -69,7 +69,7 @@ func CreateNewFile(file *os.File, fileName, content string, size int32, user *st
 	}
 
 	// ? Agregar la entrada al directorio padre
-	err = AddFileToDirectory(file, fileName, freeInodeNum, parentInodeNum, inodePos, blockPos, bmBlockPos, blockCount)
+	err = AddFileToDirectory(file, fileName, freeInodeNum, parentInodeNum, superblock, inodePos, blockPos, bmBlockPos, blockCount)
 	if err != nil {
 		return err
 	}

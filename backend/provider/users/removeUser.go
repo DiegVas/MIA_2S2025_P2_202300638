@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"main/provider/mounted"
 	"main/structs"
+	"main/utils/journaling"
 	"strings"
 )
 
@@ -53,5 +54,10 @@ func RemoveUser(params *structs.RmUserParams) error {
 	if err != nil {
 		return fmt.Errorf("error al escribir el archivo de usuarios: %v", err)
 	}
+
+	// Registrar la eliminación del usuario en el journal EXT3
+	journaling.LogEXT3Operation(session.ID, "REMOVE_USER", "/users.txt",
+		fmt.Sprintf("Usuario '%s' eliminado (UID marcado como 0)", params.User))
+
 	return nil
 }
