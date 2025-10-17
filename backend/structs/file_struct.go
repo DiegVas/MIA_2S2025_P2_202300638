@@ -21,6 +21,7 @@ type RenameFileParams struct {
 
 // DirectoryListing representa el resultado del listado
 type DirectoryListing struct {
+	ID        string          `json:"id"`
 	Path      string          `json:"path"`
 	Entries   []DirectoryData `json:"entries"`
 	IsMounted bool            `json:"is_mounted"`

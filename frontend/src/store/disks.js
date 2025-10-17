@@ -31,6 +31,8 @@ export function usedisksStore() {
   }
 
   async function setSelectedPartition(partition) {
+    const { setIDPartition } = useFileStore();
+
     localStorage.setItem("selectedPartition", JSON.stringify(partition));
     selectedPartition.value = partition;
     console.log("Partición seleccionada:", selectedPartition.value);
@@ -52,7 +54,8 @@ export function usedisksStore() {
       clearSelectedPartition();
       return null;
     }
-
+    console.log("Entradas de la partición obtenidas:", system_response.data.id);
+    setIDPartition(system_response.data.id);
     return system_response.data.entries;
   }
 

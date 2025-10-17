@@ -4,14 +4,14 @@ import { useFileStore } from "../../store/files.js";
 
 const { selectedDisk, setSelectedPartition } = usedisksStore();
 
-const { diskPath, partitionName, setbodyPath } = useFileStore();
+const { diskPath, partitionName, setbodyPath, setIDPartition } = useFileStore();
 
 console.log("Selected Disk in Partition_layout.vue:", selectedDisk);
 
 const initDirectory = async (partition) => {
   diskPath.value = selectedDisk.value.path;
   partitionName.value = partition.name;
-  setbodyPath(await setSelectedPartition(partition));
+  setbodyPath(await setSelectedPartition(partition, setIDPartition));
 };
 </script>
 

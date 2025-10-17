@@ -8,6 +8,7 @@ const diskPath = ref(null);
 const partitionName = ref(null);
 
 const fileContent = ref(null);
+const IdPartition = ref(null);
 
 /*
 const comman_parse =
@@ -27,6 +28,41 @@ const commandObj = {
 const system_response = await sendCommand(commandObj);*/
 
 export function useFileStore() {
+  async function callJournal() {
+    const commandObj = {
+      command: "journaling -id=" + IdPartition.value,
+      timestamp: new Date().toISOString(),
+      adjunt_file: null,
+    };
+
+    const system_response = await sendCommand(commandObj);
+
+    if (system_response.type === "system-error") {
+      console.error("Error del sistema:", system_response.message);
+      return {
+        success: false,
+        error: system_response.message,
+        data: { entries: [], partition_id: IdPartition.value, total_count: 0 },
+        partitionId: IdPartition.value,
+      };
+    }
+
+    // system_response.data contiene el objeto JournalingInfo del backend
+    console.log("Contenido del journal:", system_response.data);
+
+    return {
+      success: true,
+      data: system_response.data, // JournalingInfo completo del backend
+      partitionId: IdPartition.value,
+    };
+  }
+
+  function setIDPartition(newIdPartition) {
+    IdPartition.value = newIdPartition;
+    console.log("IdPartition guardado:", IdPartition.value);
+    localStorage.setItem("IdPartition", JSON.stringify(newIdPartition));
+  }
+
   function setbodyPath(newBodyPath) {
     let revisedBodyPath = [];
     for (let index = 0; index < newBodyPath.length; index++) {
@@ -39,7 +75,6 @@ export function useFileStore() {
 
     bodyPath.value = revisedBodyPath;
     localStorage.setItem("bodyPath", JSON.stringify(revisedBodyPath));
-    console.log("bodyPath guardado:", bodyPath.value);
   }
 
   function setPathFile(fileName) {
@@ -176,6 +211,8 @@ export function useFileStore() {
     fetchFileContent,
     clearFileContent,
     setPathFile,
+    callJournal,
+    setIDPartition,
 
     diskPath,
     partitionName,

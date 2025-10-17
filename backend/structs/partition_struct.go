@@ -1,12 +1,13 @@
 package structs
 
 type PartitionInfo struct {
-	Name   string `json:"name"`
-	Type   string `json:"type"`
-	Status string `json:"status"`
-	Fit    string `json:"fit"`
-	Start  int32  `json:"start"`
-	Size   int32  `json:"size"`
+	Name   string   `json:"name"`
+	Type   string   `json:"type"`
+	Status string   `json:"status"`
+	Fit    string   `json:"fit"`
+	Start  int32    `json:"start"`
+	Size   int32    `json:"size"`
+	ID     [16]byte `json:"id"`
 }
 
 type DiskPartitionsInfo struct {

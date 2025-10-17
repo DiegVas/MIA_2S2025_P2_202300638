@@ -63,6 +63,7 @@ func GetDiskPartitions(diskPath string) (*structs.DiskPartitionsInfo, error) {
 				Fit:    strings.TrimRight(string(partition.Part_fit[:]), "\x00"),
 				Start:  partition.Part_start,
 				Size:   partition.Part_size,
+				ID:     partition.Part_uuid,
 			}
 
 			diskInfo.Partitions = append(diskInfo.Partitions, partInfo)

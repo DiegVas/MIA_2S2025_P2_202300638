@@ -128,6 +128,7 @@ func ListDirectory(params *structs.LSParams) (*structs.DirectoryListing, error) 
 	fmt.Printf("DEBUG - ListDirectory contenido: %+v\n", directoryResult)
 
 	return &structs.DirectoryListing{
+		ID:      id,
 		Path:    params.Of,
 		Entries: directoryResult,
 	}, nil
