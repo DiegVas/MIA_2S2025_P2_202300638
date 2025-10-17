@@ -113,79 +113,64 @@ func clearEXT3SystemBlocks(diskFile *os.File, diskPath string, partitionName str
 
 	fmt.Printf("Partición encontrada: inicio=%d, tamaño=%d\n", partitionStart, partitionSize)
 
-	// LIMPIEZA AGRESIVA TOTAL DEL SISTEMA DE ARCHIVOS EXT3
+	// LIMPIEZA SELECTIVA DEL SISTEMA DE ARCHIVOS EXT3 (no tan agresiva)
 	blockSize := int64(1024) // Tamaño estándar de bloque EXT3
 
-	// 1. Limpiar COMPLETAMENTE desde el inicio de la partición
-	fmt.Printf("DEBUG: DESTRUCCIÓN TOTAL - Limpiando desde el inicio de la partición\n")
-	err = clearArea(diskFile, partitionStart, blockSize*8) // Limpiar primeros 8KB
-	if err != nil {
-		fmt.Printf("ADVERTENCIA: No se pudo limpiar inicio de partición: %v\n", err)
-	} else {
-		fmt.Println("✓ Inicio de partición DESTRUIDO")
-	}
-
-	// 2. Limpiar MASIVAMENTE el superbloque y área extendida
+	// 1. Corromper el superbloque principal (pero no los backups)
 	superblockOffset := partitionStart + 1024
-	fmt.Printf("DEBUG: DESTRUCCIÓN TOTAL - Limpiando superbloque extendido desde posición %d\n", superblockOffset)
-	err = clearArea(diskFile, superblockOffset, blockSize*10) // Limpiar 10KB alrededor del superbloque
+	fmt.Printf("DEBUG: CORRUPCIÓN SELECTIVA - Corrompiendo superbloque principal en posición %d\n", superblockOffset)
+	err = corruptArea(diskFile, superblockOffset, blockSize) // Solo 1KB del superbloque
 	if err != nil {
-		fmt.Printf("ADVERTENCIA: No se pudo destruir superbloque: %v\n", err)
+		fmt.Printf("ADVERTENCIA: No se pudo corromper superbloque: %v\n", err)
 	} else {
-		fmt.Println("✓ Superbloque COMPLETAMENTE DESTRUIDO")
+		fmt.Println("✓ Superbloque principal corrompido")
 	}
 
-	// 3. Limpiar TODA el área de metadatos críticos
-	metadataOffset := partitionStart + 2048
-	metadataSize := int64(1048576) // 1MB completo de metadatos
-	fmt.Printf("DEBUG: DESTRUCCIÓN TOTAL - Limpiando metadatos desde posición %d, tamaño %d bytes\n", metadataOffset, metadataSize)
-	err = clearArea(diskFile, metadataOffset, metadataSize)
+	// 2. Corromper parcialmente los bitmaps (no todo)
+	bitmapOffset := partitionStart + 2048
+	bitmapSize := int64(4096) // Solo 4KB de bitmaps
+	fmt.Printf("DEBUG: CORRUPCIÓN SELECTIVA - Corrompiendo bitmaps desde posición %d, tamaño %d bytes\n", bitmapOffset, bitmapSize)
+	err = corruptArea(diskFile, bitmapOffset, bitmapSize)
 	if err != nil {
-		fmt.Printf("ADVERTENCIA: No se pudo destruir metadatos: %v\n", err)
+		fmt.Printf("ADVERTENCIA: No se pudo corromper bitmaps: %v\n", err)
 	} else {
-		fmt.Println("✓ METADATOS COMPLETAMENTE DESTRUIDOS (bitmaps + inodos + grupos)")
+		fmt.Println("✓ Bitmaps parcialmente corrompidos")
 	}
 
-	// 4. Limpiar MASIVAMENTE los bloques de datos iniciales
-	dataOffset := partitionStart + 1050624 // Después de metadatos
-	dataSize := int64(2097152)             // 2MB de bloques de datos
-	fmt.Printf("DEBUG: DESTRUCCIÓN TOTAL - Limpiando bloques de datos desde posición %d, tamaño %d bytes\n", dataOffset, dataSize)
-	err = clearArea(diskFile, dataOffset, dataSize)
+	// 3. Corromper algunos inodos críticos (no todos)
+	inodeOffset := partitionStart + 8192
+	inodeSize := int64(2048) // Solo 2KB de inodos
+	fmt.Printf("DEBUG: CORRUPCIÓN SELECTIVA - Corrompiendo inodos desde posición %d, tamaño %d bytes\n", inodeOffset, inodeSize)
+	err = corruptArea(diskFile, inodeOffset, inodeSize)
 	if err != nil {
-		fmt.Printf("ADVERTENCIA: No se pudo destruir bloques de datos: %v\n", err)
+		fmt.Printf("ADVERTENCIA: No se pudo corromper inodos: %v\n", err)
 	} else {
-		fmt.Println("✓ BLOQUES DE DATOS MASIVAMENTE DESTRUIDOS")
+		fmt.Println("✓ Inodos críticos corrompidos")
 	}
 
-	// 5. NUEVO: Patrón de destrucción disperso - limpiar bloques distribuidos
-	fmt.Println("DEBUG: APLICANDO PATRÓN DE DESTRUCCIÓN DISPERSO...")
-	disperseCleanCount := 0
-	interval := int64(8192) // Cada 8KB
-	for offset := partitionStart; offset < partitionStart+partitionSize && disperseCleanCount < 200; offset += interval {
-		err = clearBlock(diskFile, offset, 1024)
+	// 4. Corromper algunos bloques de datos (patrón disperso)
+	fmt.Println("DEBUG: APLICANDO PATRÓN DE CORRUPCIÓN DISPERSO...")
+	corruptCount := 0
+	interval := int64(16384) // Cada 16KB
+	for offset := partitionStart + 12288; offset < partitionStart+partitionSize && corruptCount < 50; offset += interval {
+		err = corruptBlock(diskFile, offset, 1024)
 		if err == nil {
-			disperseCleanCount++
-		}
-		// También limpiar algunos bloques aleatorios cerca
-		if disperseCleanCount%10 == 0 {
-			clearBlock(diskFile, offset+1024, 1024)
-			clearBlock(diskFile, offset+2048, 1024)
+			corruptCount++
 		}
 	}
-	fmt.Printf("✓ PATRÓN DISPERSO APLICADO (%d bloques destruidos)\n", disperseCleanCount)
+	fmt.Printf("✓ PATRÓN DISPERSO APLICADO (%d bloques corrompidos)\n", corruptCount)
 
-	// 6. FINAL: Múltiples sincronizaciones para asegurar escritura
-	for i := 0; i < 3; i++ {
-		err = diskFile.Sync()
-		if err != nil {
-			fmt.Printf("ADVERTENCIA: Sincronización %d falló: %v\n", i+1, err)
-		}
+	// 5. Sincronizar cambios
+	err = diskFile.Sync()
+	if err != nil {
+		fmt.Printf("ADVERTENCIA: Sincronización falló: %v\n", err)
+	} else {
+		fmt.Println("✓ CAMBIOS SINCRONIZADOS AL DISCO")
 	}
-	fmt.Println("✓ CAMBIOS FORZOSAMENTE SINCRONIZADOS AL DISCO")
 
 	fmt.Println("==========================================")
-	fmt.Println("DESTRUCCIÓN COMPLETA DEL SISTEMA EXT3 FINALIZADA")
-	fmt.Println("RESULTADO: El sistema de archivos está COMPLETAMENTE DESTRUIDO")
+	fmt.Println("CORRUPCIÓN SELECTIVA DEL SISTEMA EXT3 FINALIZADA")
+	fmt.Println("RESULTADO: El sistema de archivos tiene corrupción parcial")
 	fmt.Println("==========================================")
 	return nil
 }
@@ -209,6 +194,56 @@ func clearArea(diskFile *os.File, offset int64, size int64) error {
 		}
 
 		_, err := diskFile.WriteAt(buffer, offset+written)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// corruptBlock corrompe un bloque específico con datos aleatorios
+func corruptBlock(diskFile *os.File, offset int64, size int64) error {
+	// Crear un patrón de corrupción (no completamente aleatorio para ser reproducible)
+	corruptData := make([]byte, size)
+	for i := range corruptData {
+		corruptData[i] = byte(0xFF) // Patrón de bits 11111111
+		if i%3 == 0 {
+			corruptData[i] = byte(0xAA) // Patrón alternado
+		} else if i%5 == 0 {
+			corruptData[i] = byte(0x55) // Otro patrón alternado
+		}
+	}
+	_, err := diskFile.WriteAt(corruptData, offset)
+	return err
+}
+
+// corruptArea corrompe un área específica con datos parcialmente aleatorios
+func corruptArea(diskFile *os.File, offset int64, size int64) error {
+	bufferSize := int64(1024) // Buffer de 1KB para optimizar escritura
+
+	for written := int64(0); written < size; written += bufferSize {
+		remaining := size - written
+		if remaining < bufferSize {
+			bufferSize = remaining
+		}
+
+		// Crear datos de corrupción para este buffer
+		corruptData := make([]byte, bufferSize)
+		for i := range corruptData {
+			// Mezcla de patrones para simular corrupción real
+			switch (written + int64(i)) % 4 {
+			case 0:
+				corruptData[i] = byte(0xFF)
+			case 1:
+				corruptData[i] = byte(0x00)
+			case 2:
+				corruptData[i] = byte(0xAA)
+			case 3:
+				corruptData[i] = byte(0x55)
+			}
+		}
+
+		_, err := diskFile.WriteAt(corruptData, offset+written)
 		if err != nil {
 			return err
 		}
