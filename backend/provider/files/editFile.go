@@ -62,15 +62,26 @@ func EditFile(params *structs.EditParams) error {
 		return fmt.Errorf("la partición '%s' no se encontró en el disco", partition.Name)
 	}
 
-	// Calcular las posiciones de las estructuras del sistema de archivos
+	// Usar las posiciones del superbloque (igual que ReadFileContent)
+	inodePos := superblock.S_inode_start
+	blockPos := superblock.S_block_start
+
+	// Calcular posiciones de bitmaps y valores de fallback
 	startPosition := targetPartition.Part_start
 	inodeCount := int32(float64(targetPartition.Part_size) * 0.05 / float64(structs.INODE_SIZE))
 	blockCount := (targetPartition.Part_size - inodeCount*structs.INODE_SIZE) / structs.BLOCK_SIZE
-
 	bmInodePos := startPosition + structs.SUPERBLOCK_SIZE
 	bmBlockPos := bmInodePos + inodeCount
-	inodePos := bmBlockPos + blockCount
-	blockPos := inodePos + (inodeCount * structs.INODE_SIZE)
+
+	// PARCHE: Si el superbloque tiene blockPos en 0 (bug de alineación antigua), calcularlo manualmente
+	// Usar la misma fórmula que findFileInDirectory para consistencia
+	if blockPos == 0 {
+		blockPos = superblock.S_inode_start + (superblock.S_inodes_count * structs.INODE_SIZE)
+		fmt.Printf("DEBUG EditFile: PARCHE - blockPos estaba en 0, calculado como %d usando S_inode_start + (S_inodes_count * INODE_SIZE)\n", blockPos)
+	}
+
+	fmt.Printf("DEBUG EditFile: filesystem_type=%d, inodePos=%d, blockPos=%d\n",
+		superblock.S_filesystem_type, inodePos, blockPos)
 
 	// Abrir el archivo del disco para escritura
 	file, err := os.OpenFile(partition.Path, os.O_RDWR, 0666)
@@ -122,11 +133,21 @@ func EditFile(params *structs.EditParams) error {
 	newContentStr := string(newContent)
 	newSize := int32(len(newContentStr))
 
+	fmt.Printf("DEBUG EditFile: Nuevo contenido leído desde '%s', tamaño: %d bytes\n", params.Contenido, newSize)
+	previewLen := 100
+	if len(newContentStr) < previewLen {
+		previewLen = len(newContentStr)
+	}
+	fmt.Printf("DEBUG EditFile: Primeros 100 caracteres del nuevo contenido: '%s'\n", newContentStr[:previewLen])
+
 	// Liberar los bloques actuales del archivo
+	fmt.Printf("DEBUG EditFile: Liberando bloques actuales del archivo (inodo %d, tamaño anterior: %d bytes)\n", inodeNum, inode.I_size)
+	fmt.Printf("DEBUG EditFile: Bloques a liberar: %v\n", inode.I_block)
 	err = freeFileBlocks(file, &inode, bmBlockPos, blockPos)
 	if err != nil {
 		return fmt.Errorf("error al liberar bloques del archivo: %v", err)
 	}
+	fmt.Printf("DEBUG EditFile: Bloques liberados exitosamente\n")
 
 	// Asignar nuevos bloques para el nuevo contenido
 	blocksNeeded := (newSize + structs.FILE_CONTENT_SIZE - 1) / structs.FILE_CONTENT_SIZE
@@ -134,12 +155,15 @@ func EditFile(params *structs.EditParams) error {
 		blocksNeeded = 1 // Al menos un bloque para archivos vacíos
 	}
 
+	fmt.Printf("DEBUG EditFile: Buscando %d bloques libres...\n", blocksNeeded)
 	freeBlocks, err := FindFreeBlocks(file, bmBlockPos, blockCount, blocksNeeded)
 	if err != nil {
 		return fmt.Errorf("error al buscar bloques libres: %v", err)
 	}
+	fmt.Printf("DEBUG EditFile: Bloques libres encontrados: %v\n", freeBlocks)
 
 	// Reiniciar los bloques del inodo
+	fmt.Printf("DEBUG EditFile: Tamaño anterior del inodo: %d bytes\n", inode.I_size)
 	for i := 0; i < 15; i++ {
 		inode.I_block[i] = 0
 	}
@@ -149,6 +173,7 @@ func EditFile(params *structs.EditParams) error {
 	if err != nil {
 		return fmt.Errorf("error al asignar bloques al inodo: %v", err)
 	}
+	fmt.Printf("DEBUG EditFile: Nuevo tamaño del inodo: %d bytes, bloques asignados: %v\n", newSize, inode.I_block[:5])
 
 	// Actualizar el tamaño y tiempo de modificación del inodo
 	inode.I_size = newSize
@@ -156,18 +181,23 @@ func EditFile(params *structs.EditParams) error {
 	inode.I_mtime = FormatTimeToBytes(now)
 
 	// Escribir el inodo actualizado
+	inodeOffset := inodePos + (inodeNum * structs.INODE_SIZE)
+	fmt.Printf("DEBUG EditFile: Escribiendo inodo %d actualizado en offset %d\n", inodeNum, inodeOffset)
 	var inodeBuffer bytes.Buffer
 	binary.Write(&inodeBuffer, binary.LittleEndian, inode)
-	_, err = file.WriteAt(inodeBuffer.Bytes(), int64(inodePos+(inodeNum*structs.INODE_SIZE)))
+	_, err = file.WriteAt(inodeBuffer.Bytes(), int64(inodeOffset))
 	if err != nil {
 		return fmt.Errorf("error al escribir el inodo actualizado: %v", err)
 	}
+	fmt.Printf("DEBUG EditFile: Inodo %d actualizado exitosamente\n", inodeNum)
 
 	// Escribir el nuevo contenido en los bloques
+	fmt.Printf("DEBUG EditFile: Escribiendo nuevo contenido (%d bytes) en los bloques del inodo\n", newSize)
 	err = WriteContentToInodeBlocks(file, newContentStr, &inode, blockPos)
 	if err != nil {
 		return fmt.Errorf("error al escribir el nuevo contenido: %v", err)
 	}
+	fmt.Printf("DEBUG EditFile: Contenido escrito exitosamente en los bloques\n")
 
 	// Registrar la operación en el journal EXT3
 	journaling.LogEXT3Operation(session.ID, "EDIT_FILE", params.Path,
