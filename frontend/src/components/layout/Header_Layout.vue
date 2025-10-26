@@ -1,10 +1,57 @@
 <script setup>
 import { useUserStore } from "../../store/user.js";
-const { user } = useUserStore();
+const { user, setUser } = useUserStore();
+
+const handleLogout = async () => {
+  try {
+    const comman_parse = "logout";
+
+    const commandObj = {
+      command: comman_parse,
+      timestamp: new Date().toISOString(),
+      adjunt_file: null,
+    };
+
+    const system_response = await sendCommand(commandObj);
+
+    console.log("logout exitoso:", system_response);
+
+    if (
+      system_response.type === "system-error" ||
+      system_response.type === "auth-error"
+    ) {
+      mostrarError(
+        system_response.text || "Error desconocido al cerrar sesión"
+      );
+      return;
+    }
+
+    setUser({
+      user: null,
+      partitionId: null,
+    });
+    router.replace("/home");
+  } catch (error) {
+    console.error("Error al cerrar sesión:", error);
+    mostrarError("Error de conexión. Por favor, intenta nuevamente.");
+    return;
+  } finally {
+    isLoading.value = false;
+    console.log("isLoading establecido a:", isLoading.value);
+  }
+};
 </script>
 
 <template>
   <div class="header w-full justify-between items-center flex">
+    <button
+      v-if="user != null"
+      @click="handleLogout"
+      class="login_btn"
+      title="Página principal"
+    >
+      Cerrar sesión
+    </button>
     <h1 class="text_header font-bold">ExtreamFS</h1>
 
     <button

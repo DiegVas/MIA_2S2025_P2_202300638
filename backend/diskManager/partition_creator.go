@@ -27,19 +27,40 @@ func calculateAvailableSpace(mbr *structs.MBR) int32 {
 	diskSize := mbr.Mbr_size
 	const MBR_SIZE = 47 + (4 * 59) // MBR + espacio para 4 particiones
 
-	usedSpace := int32(MBR_SIZE)
+	fmt.Printf("\n🔍 DEBUG - CÁLCULO DE ESPACIO DISPONIBLE:\n")
+	fmt.Printf("  Tamaño total del disco: %d bytes (%.2f MB)\n", diskSize, float64(diskSize)/(1024*1024))
+	fmt.Printf("  Tamaño del MBR (header + tabla particiones): %d bytes\n", MBR_SIZE)
 
-	// Sumar el espacio usado por particiones primarias y extendidas
+	// Encontrar el punto más lejano ocupado en el disco
+	maxUsedPosition := int32(MBR_SIZE) // Como mínimo, el MBR ocupa espacio
+	fmt.Printf("  Posición mínima ocupada (MBR): %d bytes\n", maxUsedPosition)
+
+	// Revisar todas las particiones para encontrar dónde termina la última
 	for i := 0; i < 4; i++ {
 		if mbr.Partitions[i].Part_status[0] == 1 {
-			usedSpace += mbr.Partitions[i].Part_size
+			partName := string(bytes.Trim(mbr.Partitions[i].Part_name[:], "\x00"))
+			partType := string(mbr.Partitions[i].Part_type[:])
+			partEnd := mbr.Partitions[i].Part_start + mbr.Partitions[i].Part_size
+
+			fmt.Printf("  Partición %d ('%s', tipo=%s):\n", i, partName, partType)
+			fmt.Printf("    - Start: %d bytes\n", mbr.Partitions[i].Part_start)
+			fmt.Printf("    - Size: %d bytes (%.2f MB)\n", mbr.Partitions[i].Part_size, float64(mbr.Partitions[i].Part_size)/(1024*1024))
+			fmt.Printf("    - End: %d bytes\n", partEnd)
+
+			if partEnd > maxUsedPosition {
+				fmt.Printf("    ➤ Actualizando posición máxima ocupada de %d a %d\n", maxUsedPosition, partEnd)
+				maxUsedPosition = partEnd
+			}
 		}
 	}
 
-	return diskSize - usedSpace
-}
+	availableSpace := diskSize - maxUsedPosition
+	fmt.Printf("\n  TOTAL espacio ocupado hasta: %d bytes (%.2f MB)\n", maxUsedPosition, float64(maxUsedPosition)/(1024*1024))
+	fmt.Printf("  TOTAL espacio DISPONIBLE: %d bytes (%.2f MB)\n", availableSpace, float64(availableSpace)/(1024*1024))
+	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n")
 
-// calculateAvailableSpaceInExtended calcula el espacio disponible en una partición extendida
+	return availableSpace
+} // calculateAvailableSpaceInExtended calcula el espacio disponible en una partición extendida
 func calculateAvailableSpaceInExtended(diskFile *os.File, extendedPartition *structs.PARTITION) (int32, error) {
 	if extendedPartition == nil {
 		return 0, errors.New("partición extendida no válida")
@@ -143,6 +164,12 @@ func CreatePartition(params *structs.FdiskParams) error {
 	// Calcular el tamaño solicitado en bytes
 	sizeInBytes := params.GetSizeInBytes()
 
+	fmt.Printf("\n🔍 DEBUG - CREACIÓN DE PARTICIÓN:\n")
+	fmt.Printf("  Nombre: %s\n", params.Name)
+	fmt.Printf("  Tipo: %c\n", params.Type)
+	fmt.Printf("  Tamaño solicitado: %d bytes (%.2f MB)\n", sizeInBytes, float64(sizeInBytes)/(1024*1024))
+	fmt.Printf("  Path: %s\n", params.Path)
+
 	// Verificar espacio disponible según el tipo de partición
 	if params.Type == LOGICAL {
 		// Para particiones lógicas, verificar espacio en la partición extendida
@@ -170,10 +197,20 @@ func CreatePartition(params *structs.FdiskParams) error {
 		}
 	} else {
 		// Para particiones primarias y extendidas, verificar espacio total del disco
+		fmt.Printf("\n  ➤ Validando espacio para partición primaria/extendida...\n")
 		availableSpace := calculateAvailableSpace(&mbr)
+
+		fmt.Printf("\n  📊 COMPARACIÓN:\n")
+		fmt.Printf("    Espacio disponible: %d bytes (%.2f MB)\n", availableSpace, float64(availableSpace)/(1024*1024))
+		fmt.Printf("    Espacio requerido: %d bytes (%.2f MB)\n", sizeInBytes, float64(sizeInBytes)/(1024*1024))
+
 		if availableSpace < sizeInBytes {
+			deficit := sizeInBytes - availableSpace
+			fmt.Printf("    ❌ INSUFICIENTE - Falta: %d bytes (%.2f MB)\n", deficit, float64(deficit)/(1024*1024))
 			return fmt.Errorf("no hay espacio suficiente en el disco. Disponible: %d bytes, Requerido: %d bytes", availableSpace, sizeInBytes)
 		}
+
+		fmt.Printf("    ✅ SUFICIENTE - Sobran: %d bytes (%.2f MB)\n", availableSpace-sizeInBytes, float64(availableSpace-sizeInBytes)/(1024*1024))
 	}
 
 	if params.Type == EXTENDED {
@@ -196,8 +233,11 @@ func CreatePartition(params *structs.FdiskParams) error {
 	}
 
 	if params.Type != LOGICAL && mbr.Mbr_partitions >= 4 {
+		fmt.Printf("❌ ERROR: Contador de particiones = %d (máximo 4 alcanzado)\n", mbr.Mbr_partitions)
 		return errors.New("ya se alcanzó el número máximo de particiones primarias y extendidas (4)")
 	}
+
+	fmt.Printf("  📊 Contador actual de particiones primarias/extendidas: %d/4\n", mbr.Mbr_partitions)
 
 	if params.Type == LOGICAL {
 		// Implementación de particiones lógicas
@@ -236,18 +276,34 @@ func CreatePartition(params *structs.FdiskParams) error {
 		mbr.Partitions[newPartIndex].Part_correlative = mbr.Mbr_partitions + 1
 		mbr.Mbr_partitions++
 
+		fmt.Printf("  ✅ Partición asignada al slot %d. Contador actualizado: %d/4\n", newPartIndex, mbr.Mbr_partitions)
+
 		// Buscar la siguiente posición disponible después de las particiones existentes
-		nextAvailableStart := int32(MBR_SIZE)
+		const FULL_MBR_SIZE = 47 + (4 * 59) // MBR header + tabla de particiones
+		nextAvailableStart := int32(FULL_MBR_SIZE)
+		fmt.Printf("\n  🔍 DEBUG - CÁLCULO DE POSICIÓN DE INICIO:\n")
+		fmt.Printf("    Posición inicial (después del MBR completo): %d bytes\n", nextAvailableStart)
+
+		// Buscar el final de la última partición existente
 		for i := 0; i < 4; i++ {
-			if mbr.Partitions[i].Part_status[0] != 0 && mbr.Partitions[i].Part_size > 0 {
+			if mbr.Partitions[i].Part_status[0] == 1 && mbr.Partitions[i].Part_size > 0 && i != newPartIndex {
 				partEnd := mbr.Partitions[i].Part_start + mbr.Partitions[i].Part_size
+				partName := string(bytes.Trim(mbr.Partitions[i].Part_name[:], "\x00"))
+				fmt.Printf("    Partición %d ('%s'): start=%d, size=%d, end=%d\n",
+					i, partName, mbr.Partitions[i].Part_start, mbr.Partitions[i].Part_size, partEnd)
+
 				if partEnd > nextAvailableStart {
+					fmt.Printf("      ➤ Actualizando nextAvailableStart de %d a %d\n", nextAvailableStart, partEnd)
 					nextAvailableStart = partEnd
 				}
 			}
 		}
 
 		mbr.Partitions[newPartIndex].Part_start = nextAvailableStart
+		fmt.Printf("\n    ✅ POSICIÓN FINAL ASIGNADA:\n")
+		fmt.Printf("      - Inicio de nueva partición '%s': %d bytes\n", params.Name, nextAvailableStart)
+		fmt.Printf("      - Fin de nueva partición: %d bytes\n", nextAvailableStart+sizeInBytes)
+		fmt.Printf("      - Espacio que ocupará: %d bytes\n\n", sizeInBytes)
 		var mbrBuffer bytes.Buffer
 		binary.Write(&mbrBuffer, binary.LittleEndian, mbr.Mbr_size)
 		mbrBuffer.Write(mbr.Mbr_timestamp[:])
@@ -535,6 +591,13 @@ func DeletePartition(params *structs.FdiskParams) error {
 
 	// Marcar la partición como vacía en la tabla de particiones
 	mbr.Partitions[partitionIndex] = structs.PARTITION{} // Estructura vacía
+
+	// CRÍTICO: Decrementar el contador de particiones primarias/extendidas
+	if mbr.Mbr_partitions > 0 {
+		mbr.Mbr_partitions--
+		fmt.Printf("🔍 DEBUG - ELIMINACIÓN: Decrementando contador de particiones de %d a %d\n",
+			mbr.Mbr_partitions+1, mbr.Mbr_partitions)
+	}
 
 	// Escribir el MBR actualizado
 	err = writeMBR(diskFile, mbr)

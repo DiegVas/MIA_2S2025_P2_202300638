@@ -91,13 +91,23 @@ func ReadUsersFile(diskPath, partitionName string) (string, error) {
 
 	var inodePos, blockPos int32
 
-	// Usar las posiciones almacenadas en el superbloque para ambos tipos
+	// Usar las posiciones almacenadas en el superbloque
 	inodePos = superblock.S_inode_start
-	blockPos = superblock.S_block_start
 
-	fmt.Printf("DEBUG ReadUsersFile: Usando posiciones del superbloque - inodePos=%d, blockPos=%d\n", inodePos, blockPos)
+	// CRÍTICO: Si S_block_start es 0, calcularlo usando la misma fórmula que findFileInDirectory
+	if superblock.S_block_start == 0 {
+		// Fórmula: inode_start + (inodes_count * inode_size)
+		// Esta es la posición donde terminan los inodos y empiezan los bloques
+		blockPos = superblock.S_inode_start + (superblock.S_inodes_count * structs.INODE_SIZE)
 
-	// Posición del inodo de users.txt (inodo 1)
+		fmt.Printf("DEBUG readUsersFile: S_block_start era 0, calculado como: %d\n", blockPos)
+		fmt.Printf("  S_inode_start=%d, inodes_count=%d, INODE_SIZE=%d\n",
+			superblock.S_inode_start, superblock.S_inodes_count, structs.INODE_SIZE)
+	} else {
+		blockPos = superblock.S_block_start
+	}
+
+	fmt.Printf("DEBUG ReadUsersFile: Usando posiciones - inodePos=%d, blockPos=%d\n", inodePos, blockPos) // Posición del inodo de users.txt (inodo 1)
 	usersInodePos := inodePos + structs.INODE_SIZE
 
 	fmt.Printf("DEBUG: usersInodePos=%d\n", usersInodePos)

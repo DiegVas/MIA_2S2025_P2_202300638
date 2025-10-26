@@ -13,9 +13,12 @@ func ReadFileData(file *os.File, inode structs.Inode, blockPos int32) (string, e
 	var content strings.Builder
 	totalBytesRead := 0
 
+	fmt.Printf("DEBUG readUsersFileData - blockPos: %d, inode.I_size: %d\n", blockPos, inode.I_size)
+
 	// 1. Leer bloques directos (slots 0-11)
 	for i := 0; i < 12 && inode.I_block[i] != 0 && totalBytesRead < int(inode.I_size); i++ {
 		blockNum := inode.I_block[i]
+		fmt.Printf("DEBUG: Leyendo bloque directo %d (número: %d)\n", i, blockNum)
 
 		bytesRead, err := readDirectBlock(file, blockNum, blockPos, int(inode.I_size)-totalBytesRead, &content)
 		if err != nil {
@@ -52,24 +55,43 @@ func ReadFileData(file *os.File, inode structs.Inode, blockPos int32) (string, e
 
 // readDirectBlock lee un bloque directo de datos
 func readDirectBlock(file *os.File, blockNum int32, blockPos int32, maxBytes int, content *strings.Builder) (int, error) {
+	// CRÍTICO: Si blockPos es 0, significa que S_block_start está en formato relativo
+	// Necesitamos obtener el superbloque para calcular la posición absoluta
+	blockPosition := int64(blockPos + (blockNum * structs.BLOCK_SIZE))
+
+	fmt.Printf("DEBUG readDirectBlock: blockNum=%d, blockPos=%d, posición calculada=%d\n",
+		blockNum, blockPos, blockPosition)
+
 	// Leer el bloque completo
 	blockBytes := make([]byte, structs.BLOCK_SIZE)
-	_, err := file.ReadAt(blockBytes, int64(blockPos+(blockNum*structs.BLOCK_SIZE)))
-	if err != nil {
-		return 0, fmt.Errorf("error al leer el bloque de datos %d: %v", blockNum, err)
+	bytesRead, err := file.ReadAt(blockBytes, blockPosition)
+	if err != nil && bytesRead == 0 {
+		return 0, fmt.Errorf("error al leer el bloque de datos %d en posición %d: %v", blockNum, blockPosition, err)
 	}
 
-	// Solo tomar los primeros FILE_CONTENT_SIZE bytes que contienen datos útiles
+	// Determinar cuántos bytes leer del bloque
 	bytesToRead := int(structs.FILE_CONTENT_SIZE)
 	if bytesToRead > maxBytes {
 		bytesToRead = maxBytes
 	}
 
-	// Escribir solo los bytes útiles del contenido
+	// Escribir exactamente los bytes necesarios
 	blockContent := blockBytes[:bytesToRead]
+
+	fmt.Printf("DEBUG readDirectBlock: bytesToRead=%d, bytesRead=%d, contenido (hex primeros 50): %x\n",
+		bytesToRead, bytesRead, blockContent[:min(50, len(blockContent))])
+	fmt.Printf("DEBUG readDirectBlock: contenido (string): '%s'\n", string(blockContent))
+
 	content.Write(blockContent)
 
 	return bytesToRead, nil
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 } // readIndirectBlock lee un bloque indirecto simple
 func readIndirectBlock(file *os.File, ptrBlockNum int32, blockPos int32, maxBytes int, content *strings.Builder) (int, error) {
 	// Leer el bloque de punteros

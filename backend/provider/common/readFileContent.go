@@ -94,13 +94,33 @@ func ReadFileContent(filePath string, idPartition string) (string, error) {
 	var inodePos, blockPos int32
 
 	if superblock.S_filesystem_type == 3 {
-		// EXT3: Usar las posiciones del superbloque
+		// EXT3: Calcular posiciones absolutas
 		inodePos = superblock.S_inode_start
-		blockPos = superblock.S_block_start
+
+		// CRÍTICO: Si S_block_start es 0, calcularlo usando la misma fórmula que findFileInDirectory
+		if superblock.S_block_start == 0 {
+			// Fórmula: inode_start + (inodes_count * inode_size)
+			// Esta es la posición donde terminan los inodos y empiezan los bloques
+			blockPos = superblock.S_inode_start + (superblock.S_inodes_count * structs.INODE_SIZE)
+
+			fmt.Printf("DEBUG: S_block_start era 0, calculado como: %d\n", blockPos)
+			fmt.Printf("  S_inode_start=%d, inodes_count=%d, INODE_SIZE=%d\n",
+				superblock.S_inode_start, superblock.S_inodes_count, structs.INODE_SIZE)
+		} else {
+			blockPos = superblock.S_block_start
+		}
 	} else {
-		// EXT2: Usar las posiciones del superbloque
+		// EXT2: Aplicar la misma lógica
 		inodePos = superblock.S_inode_start
-		blockPos = superblock.S_block_start
+
+		if superblock.S_block_start == 0 {
+			// Misma fórmula para EXT2
+			blockPos = superblock.S_inode_start + (superblock.S_inodes_count * structs.INODE_SIZE)
+
+			fmt.Printf("DEBUG: S_block_start era 0, calculado como: %d\n", blockPos)
+		} else {
+			blockPos = superblock.S_block_start
+		}
 	}
 
 	fmt.Printf("DEBUG ReadFileContent: filesystem_type=%d, inodePos=%d, blockPos=%d\n", superblock.S_filesystem_type, inodePos, blockPos)
