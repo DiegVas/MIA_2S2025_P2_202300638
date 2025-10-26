@@ -1,5 +1,9 @@
 <script setup>
 import { useUserStore } from "../../store/user.js";
+import { sendCommand } from "../../services/send_commands.ts";
+import { useRouter } from "vue-router";
+
+const router = useRouter();
 const { user, setUser } = useUserStore();
 
 const handleLogout = async () => {
@@ -20,24 +24,18 @@ const handleLogout = async () => {
       system_response.type === "system-error" ||
       system_response.type === "auth-error"
     ) {
-      mostrarError(
+      console.error(
         system_response.text || "Error desconocido al cerrar sesión"
       );
       return;
     }
 
-    setUser({
-      user: null,
-      partitionId: null,
-    });
+    setUser(null);
     router.replace("/home");
   } catch (error) {
     console.error("Error al cerrar sesión:", error);
-    mostrarError("Error de conexión. Por favor, intenta nuevamente.");
     return;
   } finally {
-    isLoading.value = false;
-    console.log("isLoading establecido a:", isLoading.value);
   }
 };
 </script>
