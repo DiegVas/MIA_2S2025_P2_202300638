@@ -2,9 +2,9 @@ import { createRouter, createWebHistory } from "vue-router";
 import Chat from "../views/Chat.vue";
 import Home from "../views/Home.vue";
 import Login from "../views/Login.vue";
-import { useUserStore } from "../store/user.js";
-import { usedisksStore } from "../store/disks.js";
-import { sendCommand } from "../services/send_commands.ts";
+import { useUserStore } from "../store/user";
+import { usedisksStore } from "../store/disks";
+import { sendCommand } from "../services/send_commands";
 
 const routes = [
   { path: "/", component: Chat },
@@ -27,7 +27,7 @@ const router = createRouter({
   routes,
 });
 
-router.beforeEach(async (to, from, next) => {
+router.beforeEach(async (to, _from, next) => {
   const { user } = useUserStore();
   const { setdisks, cleardisks } = usedisksStore();
 

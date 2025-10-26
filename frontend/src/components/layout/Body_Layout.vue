@@ -4,6 +4,7 @@ import SmiaViewer from "../common/SmiaViewer.vue";
 import { ref, nextTick } from "vue";
 import "../../styles/chat-animations.css";
 import { sendCommand } from "../../services/send_commands.ts";
+import { v4 as uuidv4 } from "uuid";
 
 const messages = ref([]);
 const messagesContainer = ref(null); // Referencia al contenedor de mensajes
@@ -17,7 +18,7 @@ const scrollToBottom = async () => {
 
 const handleSendMessage = async (message) => {
   messages.value.push({
-    id: crypto.randomUUID(),
+    id: uuidv4(),
     text: message,
     timestamp: new Date(),
     type: "user",
@@ -34,7 +35,7 @@ const handleSendMessage = async (message) => {
   const system_response = await sendCommand(commandObj);
 
   messages.value.push({
-    id: crypto.randomUUID(),
+    id: uuidv4(),
     ...system_response,
   });
 
@@ -47,7 +48,7 @@ const handleFileLoaded = (content) => {
   console.log("Archivo .smia cargado:", content);
 
   messages.value.push({
-    id: crypto.randomUUID(),
+    id: uuidv4(),
     text: content,
     timestamp: new Date(),
     type: "smia-file",
