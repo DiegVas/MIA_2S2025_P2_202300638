@@ -97,14 +97,42 @@ func CopyFileOrDirectory(params *structs.MoveParams) error {
 		return errors.New("no tiene permisos de escritura sobre el archivo o directorio origen")
 	}
 
-	// Verificar que el directorio de destino existe
-	destDir := filepath.Dir(params.Destino)
-	destBaseName := filepath.Base(params.Destino)
+	// Verificar si el destino existe
+	var destDirInodeNum int32
+	var destBaseName string
 
-	// Verificar que el directorio de destino existe
-	destDirInodeNum, err := common.FindFileInodeByPath(file, destDir, superblock, inodePos, blockPos)
-	if err != nil {
-		return fmt.Errorf("el directorio de destino no existe: %v", err)
+	// Intentar encontrar el destino completo primero
+	destInodeNum, err := common.FindFileInodeByPath(file, params.Destino, superblock, inodePos, blockPos)
+	if err == nil {
+		// El destino existe, verificar si es un directorio
+		destInodeBytes := make([]byte, structs.INODE_SIZE)
+		destInodeOffset := int64(superblock.S_inode_start + (destInodeNum * structs.INODE_SIZE))
+		_, err = file.ReadAt(destInodeBytes, destInodeOffset)
+		if err != nil {
+			return fmt.Errorf("error al leer el inodo del destino: %v", err)
+		}
+
+		var destInode structs.Inode
+		buffer = bytes.NewReader(destInodeBytes)
+		binary.Read(buffer, binary.LittleEndian, &destInode)
+
+		if destInode.I_type == 1 { // Es un directorio
+			// Copiar dentro del directorio existente usando el nombre original
+			destDirInodeNum = destInodeNum
+			destBaseName = filepath.Base(params.Path)
+		} else {
+			return errors.New("el destino existe y no es un directorio")
+		}
+	} else {
+		// El destino no existe, usar el directorio padre
+		destDir := filepath.Dir(params.Destino)
+		destBaseName = filepath.Base(params.Destino)
+
+		// Verificar que el directorio padre existe
+		destDirInodeNum, err = common.FindFileInodeByPath(file, destDir, superblock, inodePos, blockPos)
+		if err != nil {
+			return fmt.Errorf("el directorio de destino no existe: %v", err)
+		}
 	}
 
 	// Leer el inodo del directorio de destino
@@ -121,7 +149,7 @@ func CopyFileOrDirectory(params *structs.MoveParams) error {
 
 	// Verificar que el destino es un directorio
 	if destDirInode.I_type != 1 {
-		return errors.New("el destino debe ser un directorio")
+		return errors.New("el directorio de destino debe ser un directorio")
 	}
 
 	// Verificar permisos de escritura sobre el directorio de destino
@@ -143,8 +171,9 @@ func CopyFileOrDirectory(params *structs.MoveParams) error {
 	}
 
 	// Registrar la copia en el journal EXT3
+	finalDestPath := filepath.Join(params.Destino, destBaseName)
 	journaling.LogEXT3Operation(session.ID, "COPY_FILE_OR_DIRECTORY", params.Path,
-		fmt.Sprintf("Archivo/directorio copiado de '%s' a '%s'", params.Path, params.Destino))
+		fmt.Sprintf("Archivo/directorio copiado de '%s' a '%s'", params.Path, finalDestPath))
 
 	return nil
 }

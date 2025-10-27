@@ -1808,3 +1808,7 @@ Frontend: Visualización de contenido en interfaz
 - El frontend puede consultar el journal en tiempo real
 - Las entradas se muestran con formato temporal legible
 - Filtrado por tipo de operación y rango de fechas
+
+**AWS**:
+
+![alt text](image-8.png)
