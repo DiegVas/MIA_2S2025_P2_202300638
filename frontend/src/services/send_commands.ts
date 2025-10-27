@@ -10,7 +10,7 @@ export async function sendCommand(
   { type: string; text: string; timestamp: Date; data?: any } | undefined
 > {
   try {
-    const response = await fetch("http://localhost:8080/command", {
+    const response = await fetch("http://18.224.4.34:8080/command", {
       method: "POST",
       body: JSON.stringify(command),
       headers: {

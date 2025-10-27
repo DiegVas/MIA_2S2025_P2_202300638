@@ -1811,4 +1811,11 @@ Frontend: Visualización de contenido en interfaz
 
 **AWS**:
 
+#instancia en IC2
 ![alt text](image-8.png)
+
+#instancia en s3
+![alt text](image-9.png)
+
+#alojamiento de sitio web estatico
+![alt text](image-10.png)
