@@ -91,7 +91,7 @@ Abrir el navegador web y navegar a `http://localhost:5173`
 La interfaz principal de GoDisk consta de dos áreas principales:
 
 **[IMAGEN: Interfaz principal completa]**
-*Captura de pantalla mostrando la interfaz completa con ambas áreas*
+_Captura de pantalla mostrando la interfaz completa con ambas áreas_
 
 ### Área de Entrada de Comandos
 
@@ -171,6 +171,7 @@ rmdisk -path=<ruta>
 
 **[IMAGEN: Comando rmdisk]**
 ![alt text](src/image-5.png)
+
 ```
 rmdisk -path="/home/user/disco1.mia"
 ```
@@ -193,12 +194,13 @@ fdisk -size=<tamaño> -path=<ruta> -name=<nombre> -type=<P|E|L> -fit=<BF|FF|WF> 
 
 **[IMAGEN: Creando partición primaria]**
 ![alt text](src/image-6.png)
+
 ```
 fdisk -size=300 -path="/home/user/disco1.mia" -name="Particion1" -type=P
 ```
 
 **[IMAGEN: Resultado partición primaria]**
-*Captura del resultado exitoso*
+_Captura del resultado exitoso_
 
 **Crear partición extendida:**
 
@@ -226,12 +228,13 @@ mount -path="/home/user/disco1.mia" -name="Particion1"
 
 **[IMAGEN: Resultado mount con ID]**
 ![alt text](src/image-7.png)
+
 #### MOUNTED - Listar Particiones Montadas
 
 Muestra todas las particiones actualmente montadas.
 
 **[IMAGEN: Comando mounted]**
-*Captura del comando mounted y su resultado*
+_Captura del comando mounted y su resultado_
 
 ```
 mounted
@@ -253,10 +256,10 @@ mkfs -id=<id_particion> -type=<full>
 
 **[IMAGEN: Comando mkfs]**
 ![alt text](src/image-8.png)
+
 ```
 mkfs -id=341A -type=full
 ```
-
 
 ### 5.5 Gestión de Usuarios
 
@@ -283,11 +286,136 @@ login -user=root -pass=123 -id=341A
 
 **[IMAGEN: Comando logout]**
 ![alt text](src/image-10.png)
+
 ```
 logout
 ```
 
-### 5.6 Administración de Grupos y Usuarios
+### 5.6 Gestor de Archivos Integrado
+
+Una vez que hayas iniciado sesión exitosamente, se habilitará el **Gestor de Archivos** integrado en la aplicación web. Este componente te permite navegar de forma visual y intuitiva por el sistema de archivos de las particiones montadas.
+
+#### Prerrequisitos para Usar el Gestor de Archivos
+
+**IMPORTANTE:** Antes de poder utilizar el gestor de archivos, debes cumplir con los siguientes requisitos:
+
+1. **Tener al menos una partición montada** usando el comando `mount`
+2. **Formatear la partición** con el comando `mkfs`
+3. **Iniciar sesión** con un usuario válido usando el comando `login`
+
+#### Flujo de Navegación del Gestor de Archivos
+
+##### Paso 1: Selección de Disco
+
+Al acceder al gestor de archivos, primero se presenta una vista con todos los discos disponibles en el sistema.
+
+![alt text](image-2.png)
+_Captura mostrando la interfaz de selección de discos_
+
+- Los discos se muestran con su información básica (ruta, tamaño, estado)
+- Haz clic en el disco que deseas explorar
+
+##### Paso 2: Selección de Partición
+
+Una vez seleccionado un disco, aparecerán todas las particiones disponibles en ese disco.
+
+![alt text](image-3.png)
+
+- Solo se mostrarán las particiones que estén **montadas** y **formateadas**
+- Cada partición muestra información como nombre, tipo, tamaño y estado
+- Selecciona la partición que deseas explorar
+
+##### Paso 3: Navegación de Archivos y Carpetas
+
+Después de seleccionar una partición, accederás al explorador de archivos donde podrás:
+
+**[IMAGEN: Explorador de archivos principal]**
+_Captura del explorador de archivos mostrando carpetas y archivos_
+
+**Funcionalidades del Explorador:**
+
+![alt text](image-4.png)
+
+##### Paso 4: Lectura de Contenido de Archivos
+
+Cuando selecciones un archivo, podrás visualizar su contenido directamente en la interfaz.
+
+![alt text](image-5.png)
+
+- El contenido se muestra en un área dedicada
+- Se conserva el formato original del archivo
+- Posibilidad de scroll para archivos largos
+
+#### Journal del Sistema
+
+El gestor de archivos incluye una funcionalidad especial llamada **Journal** que registra todas las operaciones realizadas en el sistema de archivos.
+
+![alt text](image-6.png)
+
+##### Acceso al Journal
+
+- En la interfaz del gestor de archivos, busca el botón **"Mostrar el Journal"**
+- Al hacer clic, se desplegará una vista con todas las operaciones registradas
+
+**[IMAGEN: Vista del Journal completo]**
+_Captura de la interfaz del Journal mostrando el historial de operaciones_
+
+##### Información del Journal
+
+El Journal muestra:
+
+- **Timestamp:** Fecha y hora de cada operación
+- **Tipo de operación:** Creación, modificación, eliminación, etc.
+- **Usuario responsable:** Quién realizó la acción
+- **Ruta afectada:** Archivo o carpeta involucrada
+- **Detalles adicionales:** Información específica de la operación
+
+![alt text](image-7.png)
+
+##### Filtrado y Búsqueda en el Journal
+
+- **Filtro por fecha:** Visualizar operaciones de un período específico
+- **Filtro por usuario:** Ver solo operaciones de un usuario determinado
+- **Filtro por tipo:** Mostrar solo creaciones, modificaciones, etc.
+
+**[IMAGEN: Filtros del Journal]**
+_Captura de los controles de filtrado del Journal_
+
+#### Navegación y Controles
+
+##### Botón de Retroceso
+
+**[IMAGEN: Botón de retroceso]**
+_Captura del botón de navegación hacia atrás_
+
+- Permite regresar al nivel anterior en la navegación
+- Secuencia: Archivo/Carpeta → Partición → Disco → Pantalla principal
+
+##### Transiciones Animadas
+
+La interfaz incluye transiciones suaves entre las diferentes vistas para una mejor experiencia de usuario.
+
+#### Indicadores Visuales
+
+##### Estados de Conexión
+
+**[IMAGEN: Indicadores de estado]**
+_Captura mostrando los diferentes indicadores de estado del sistema_
+
+- **Verde:** Partición montada y activa
+- **Amarillo:** Partición montada pero sin sesión activa
+- **Rojo:** Partición no disponible o error
+
+##### Iconografía
+
+**[IMAGEN: Iconos del sistema]**
+_Captura mostrando los diferentes tipos de iconos para archivos y carpetas_
+
+- **Carpetas:** Icono de carpeta azul
+- **Archivos de texto:** Icono de documento
+- **Archivos del sistema:** Iconos especiales diferenciados
+
+### 5.7 Administración de Grupos y Usuarios
 
 #### MKGRP - Crear Grupo
 
@@ -309,7 +437,7 @@ mkgrp -name=estudiantes
 mkusr -user=juan -pass=1234 -grp=estudiantes
 ```
 
-### 5.7 Manejo de Archivos y Carpetas
+### 5.8 Manejo de Archivos y Carpetas
 
 #### MKDIR - Crear Carpeta
 
@@ -357,7 +485,7 @@ mkfile -path="/home/datos.txt" -cont="/home/local/datos.txt" -r
 #### CAT - Mostrar Contenido
 
 **[IMAGEN: Comando cat]**
-*Captura del comando cat mostrando contenido de archivo*
+_Captura del comando cat mostrando contenido de archivo_
 
 ```
 cat -file1="/home/archivo1.txt"
@@ -365,6 +493,7 @@ cat -file1="/home/archivo1.txt"
 
 **[IMAGEN: Resultado cat]**
 ![alt text](src/image-14.png)
+
 ---
 
 ## 6. Ejemplos Prácticos
@@ -387,14 +516,12 @@ fdisk -size=3 -unit=M -path="/home/proyecto/disco.mia" -name="Datos" -type=L
 
 **Paso 3: Montar y formatear**
 
-
 ```
 mount -path="/home/proyecto/disco.mia" -name="SO"
 mkfs -id=341A -type=full
 ```
 
 **Paso 4: Crear estructura de directorios**
-
 
 ```
 login -user=root -pass=123 -id=341A
@@ -440,16 +567,18 @@ rep -name=<tipo_reporte> -path=<ruta_salida> -id=<id_particion> -path_file_ls=<r
 #### Reporte MBR
 
 ![alt text](src/p1_r2_mbr.jpg)
+
 ```
 rep -name=mbr -path="/home/reportes/mbr.jpg" -id=341A
 ```
 
 **[IMAGEN: Resultado reporte MBR]**
-*Captura del archivo generado mostrando la estructura MBR*
+_Captura del archivo generado mostrando la estructura MBR_
 
 #### Reporte DISK
 
 ![alt text](src/p1_r1_disk.jpg)
+
 ```
 rep -name=disk -path="/home/reportes/disk.jpg" -id=341A
 ```
@@ -472,6 +601,7 @@ rep -name=tree -path="/home/reportes/tree.jpg" -id=341A
 ```
 rep -name=bm_inode -path="/home/reportes/bitmap_inodos.txt" -id=341A
 ```
+
 ---
 
 ## 8. Resolución de Problemas
@@ -483,7 +613,7 @@ rep -name=bm_inode -path="/home/reportes/bitmap_inodos.txt" -id=341A
 **Síntoma:** El sistema no reconoce un comando ingresado.
 
 **[IMAGEN: Error comando no reconocido]**
-*Captura del mensaje de error*
+_Captura del mensaje de error_
 
 **Solución:**
 
@@ -506,17 +636,15 @@ rep -name=bm_inode -path="/home/reportes/bitmap_inodos.txt" -id=341A
 #### Error: "Sin sesión activa"
 
 **Síntoma:** Comandos que requieren sesión fallan.
-*
 
-**Solución:**
+- **Solución:**
 
-- Ejecutar `login` con credenciales válidas
-- Verificar que la partición esté montada y formateada
+* Ejecutar `login` con credenciales válidas
+* Verificar que la partición esté montada y formateada
 
 #### Error: "Permisos insuficientes"
 
 **Síntoma:** No se puede ejecutar una operación por permisos.
-
 
 **Solución:**
 
@@ -526,7 +654,6 @@ rep -name=bm_inode -path="/home/reportes/bitmap_inodos.txt" -id=341A
 ### Verificación del Estado del Sistema
 
 #### Comando de Diagnóstico
-
 
 ```
 mounted
@@ -542,7 +669,6 @@ cat -file1="/users.txt"
 
 Utiliza el reporte MBR para visualizar la estructura:
 
-
 ```
 rep -name=mbr -path="/tmp/verificacion.jpg" -id=341A
 ```
@@ -555,7 +681,6 @@ Puedes crear una nueva partición o redimensionar la existente (requiere recrear
 
 Los datos permanecen en el disco virtual. Solo necesitas hacer login nuevamente:
 
-
 ```
 mount -path="/ruta/disco.mia" -name="nombre_particion"
 login -user=tu_usuario -pass=tu_contraseña -id=ID_ASIGNADO
@@ -564,8 +689,6 @@ login -user=tu_usuario -pass=tu_contraseña -id=ID_ASIGNADO
 ### ¿Puedo usar espacios en nombres de archivos o rutas?
 
 Sí, pero debes encerrar la ruta completa entre comillas dobles:
-
-
 
 ```
 mkdir -path="/home/mis documentos/proyecto final" -p
